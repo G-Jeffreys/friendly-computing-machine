@@ -79,38 +79,6 @@ export async function updateProfileAction(
   }
 }
 
-export async function updateProfileByStripeCustomerIdAction(
-  stripeCustomerId: string,
-  data: Partial<InsertProfile>
-): Promise<ActionState<SelectProfile>> {
-  try {
-    const [updatedProfile] = await db
-      .update(profilesTable)
-      .set(data)
-      .where(eq(profilesTable.stripeCustomerId, stripeCustomerId))
-      .returning()
-
-    if (!updatedProfile) {
-      return {
-        isSuccess: false,
-        message: "Profile not found by Stripe customer ID"
-      }
-    }
-
-    return {
-      isSuccess: true,
-      message: "Profile updated by Stripe customer ID successfully",
-      data: updatedProfile
-    }
-  } catch (error) {
-    console.error("Error updating profile by stripe customer ID:", error)
-    return {
-      isSuccess: false,
-      message: "Failed to update profile by Stripe customer ID"
-    }
-  }
-}
-
 export async function deleteProfileAction(
   userId: string
 ): Promise<ActionState<void>> {

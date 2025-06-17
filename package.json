@@ -69,16 +69,16 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "^2.15.0",
     "sonner": "^1.7.1",
-    "stripe": "^16.9.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
+    "write-good": "^1.0.8",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",
-    "@types/node": "^20",
-    "@types/react": "^16.8 || ^17.0 || ^18.0 || ^19.0",
+    "@types/node": "20.19.1",
+    "@types/react": "19.1.8",
     "@types/react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0",
     "dotenv": "^16.4.5",
     "drizzle-kit": "^0.24.2",
@@ -90,6 +90,6 @@
     "postcss": "^8",
     "prettier": "^3.3.3",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "5.8.3"
   }
 }

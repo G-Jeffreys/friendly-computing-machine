@@ -1,3 +1,5 @@
+"use server"
+
 /*
 <ai_context>
 The root server layout for the app.
@@ -22,9 +24,11 @@ import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "Mckay's App Template",
-  description: "A full-stack web app template."
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "WordWise",
+    description: "A web-based text editor."
+  }
 }
 
 export default async function RootLayout({

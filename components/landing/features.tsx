@@ -13,13 +13,7 @@ import {
   CardTitle
 } from "@/components/ui/card"
 import { motion } from "framer-motion"
-import {
-  AppWindow,
-  Database,
-  DollarSign,
-  LucideIcon,
-  Shield
-} from "lucide-react"
+import { AppWindow, Database, LucideIcon, Shield } from "lucide-react"
 
 interface FeatureProps {
   title: string
@@ -42,11 +36,6 @@ const features: FeatureProps[] = [
     title: "Auth",
     description: "Clerk",
     icon: Shield
-  },
-  {
-    title: "Payments",
-    description: "Stripe",
-    icon: DollarSign
   }
 ]
 

@@ -19,13 +19,9 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { ThemeSwitcher } from "./utilities/theme-switcher"
 
-const navLinks = [
-  { href: "/about", label: "About" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/contact", label: "Contact" }
-]
+const navLinks: { href: string; label: string }[] = []
 
-const signedInLinks = [{ href: "/todo", label: "Todo" }]
+const signedInLinks = [{ href: "/documents", label: "Documents" }]
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -56,7 +52,7 @@ export default function Header() {
         <div className="flex items-center space-x-2 hover:cursor-pointer hover:opacity-80">
           <Rocket className="size-6" />
           <Link href="/" className="text-xl font-bold">
-            Mckay's App Template
+            WordWise
           </Link>
         </div>
 
