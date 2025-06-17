@@ -42,32 +42,80 @@ export default function DocumentEditor({
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#039;")
 
+  /**
+   * Generate HTML string for highlighted text.
+   *
+   * - Deduplicates overlapping/duplicate suggestions so each character is highlighted at most once.
+   * - Applies precedence: spell (red) > grammar (blue) > style (purple).
+   *
+   * This prevents the same word/phrase from being rendered multiple times when it belongs to
+   * multiple categories.
+   */
   const generateHighlighted = useCallback((text: string, sgs: Suggestion[]) => {
     if (!sgs.length) return escapeHtml(text)
-    // sort suggestions by offset
-    const sorted = [...sgs].sort((a, b) => a.offset - b.offset)
-    let cursor = 0
-    let result = ""
-    sorted.forEach(sg => {
-      // add text before suggestion
-      if (cursor < sg.offset) {
-        result += escapeHtml(text.slice(cursor, sg.offset))
-      }
-      const frag = escapeHtml(text.slice(sg.offset, sg.offset + sg.length))
-      const colorClass =
-        sg.type === "spell"
-          ? "text-red-600 underline decoration-red-600"
-          : sg.type === "grammar"
-            ? "text-blue-600 underline decoration-blue-600"
-            : "text-purple-600 underline decoration-purple-600"
-      result += `<span class="${colorClass}">${frag}</span>`
-      cursor = sg.offset + sg.length
-    })
-    // trailing text
-    if (cursor < text.length) {
-      result += escapeHtml(text.slice(cursor))
+
+    // Priority values – higher means higher precedence.
+    const priority: Record<Suggestion["type"], number> = {
+      spell: 3,
+      grammar: 2,
+      style: 1
     }
-    return result
+
+    // Arrays to hold the winning suggestion type + its priority for every character.
+    const labels: Array<Suggestion["type"] | null> = Array(text.length).fill(
+      null
+    )
+    const prios: number[] = Array(text.length).fill(0)
+
+    // Mark characters according to highest-priority suggestion touching them.
+    for (const sg of sgs) {
+      const p = priority[sg.type]
+      const start = Math.max(0, sg.offset)
+      const end = Math.min(text.length, sg.offset + sg.length)
+      for (let i = start; i < end; i++) {
+        if (p > prios[i]) {
+          prios[i] = p
+          labels[i] = sg.type
+        }
+      }
+    }
+
+    // Helper to map type -> css classes.
+    const colorClass = (t: Suggestion["type"]) =>
+      t === "spell"
+        ? "text-red-600 underline decoration-red-600"
+        : t === "grammar"
+          ? "text-blue-600 underline decoration-blue-600"
+          : "text-purple-600 underline decoration-purple-600"
+
+    // Build final HTML by grouping consecutive characters with the same label.
+    let html = ""
+    let currentLabel: Suggestion["type"] | null = null
+    let buffer = ""
+
+    const flush = () => {
+      if (!buffer) return
+      if (currentLabel) {
+        html += `<span class="${colorClass(currentLabel)}">${escapeHtml(
+          buffer
+        )}</span>`
+      } else {
+        html += escapeHtml(buffer)
+      }
+      buffer = ""
+    }
+
+    for (let i = 0; i < text.length; i++) {
+      const label = labels[i]
+      if (label !== currentLabel) {
+        flush()
+        currentLabel = label
+      }
+      buffer += text[i]
+    }
+
+    flush()
+    return html
   }, [])
 
   // Handle typing – update UI immediately and debounce expensive analysis
