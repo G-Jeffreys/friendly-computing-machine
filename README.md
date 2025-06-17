@@ -38,6 +38,10 @@ You will likely not need paid plans unless you are building a business.
 
 ```bash
 # DB (Supabase)
+# Supabase Postgres connection string (preferred)
+SUPABASE_DB_URL=
+
+# Legacy / fallback database URL
 DATABASE_URL=
 
 # Auth (Clerk)
