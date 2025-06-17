@@ -10,7 +10,7 @@ const nextConfig = {
     remotePatterns: [{ hostname: "localhost" }]
   },
   experimental: {
-    workerThreads: true
+    workerThreads: false
   }
 }
 
