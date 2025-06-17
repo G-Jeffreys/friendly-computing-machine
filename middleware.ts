@@ -6,8 +6,8 @@ Contains middleware for protecting routes, checking user authentication, and red
 
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
-export default clerkMiddleware({
-  publicRoutes: [
+const clerkOptions = {
+  ignoredRoutes: [
     "/",
     "/about",
     "/contact",
@@ -16,7 +16,9 @@ export default clerkMiddleware({
     "/sign-up(.*)",
     "/api/stripe/webhooks",
   ],
-});
+} as any;
+
+export default clerkMiddleware(clerkOptions);
 
 export const config = {
   matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
