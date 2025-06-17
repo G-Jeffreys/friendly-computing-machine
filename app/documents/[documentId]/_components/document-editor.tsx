@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { Suggestion } from "@/lib/hooks/use-spell-grammar"
 import { useAnalyser } from "@/lib/hooks/use-analyser"
+import { useRouter } from "next/navigation"
 
 interface DocumentEditorProps {
   initialDocument: SelectDocument
@@ -28,6 +29,7 @@ export default function DocumentEditor({
   const [highlightedHtml, setHighlightedHtml] = useState<string>("")
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
+  const router = useRouter()
   const { analyse } = useAnalyser()
   const analysisTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const DEBOUNCE_MS = 750
@@ -194,6 +196,32 @@ export default function DocumentEditor({
     })
   }
 
+  const handleDelete = () => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this document? This action cannot be undone."
+      )
+    ) {
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/documents/${initialDocument.id}`, {
+          method: "DELETE"
+        })
+        if (!res.ok) {
+          throw new Error("Failed to delete")
+        }
+        toast({ title: "Document deleted" })
+        router.push("/documents")
+      } catch (error) {
+        console.error(error)
+        toast({ title: "Delete failed", variant: "destructive" })
+      }
+    })
+  }
+
   // Run checks once after component mounts to analyze saved document
   useEffect(() => {
     runChecks(initialDocument.content)
@@ -317,9 +345,18 @@ export default function DocumentEditor({
         </aside>
       </div>
 
-      <Button onClick={handleSave} disabled={isPending} className="mt-4">
-        {isPending ? "Saving..." : "Save"}
-      </Button>
+      <div className="mt-4 flex gap-2">
+        <Button onClick={handleSave} disabled={isPending}>
+          {isPending ? "Saving..." : "Save"}
+        </Button>
+        <Button
+          onClick={handleDelete}
+          disabled={isPending}
+          variant="destructive"
+        >
+          {isPending ? "Please wait..." : "Delete"}
+        </Button>
+      </div>
     </div>
   )
 }
