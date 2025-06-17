@@ -1,6 +1,6 @@
 /*
 <ai_context>
-This client page provides the login form from Clerk.
+This client page provides the sign-in form from Clerk.
 </ai_context>
 */
 
@@ -10,7 +10,7 @@ import { SignIn } from "@clerk/nextjs"
 import { dark } from "@clerk/themes"
 import { useTheme } from "next-themes"
 
-export default function LoginPage() {
+export default function SignInPage() {
   const { theme } = useTheme()
 
   return (

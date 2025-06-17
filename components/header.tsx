@@ -84,11 +84,11 @@ export default function Header() {
           <ThemeSwitcher />
 
           <SignedOut>
-            <SignInButton>
-              <Button variant="outline">Login</Button>
+            <SignInButton mode="modal">
+              <Button variant="outline">Sign In</Button>
             </SignInButton>
 
-            <SignUpButton>
+            <SignUpButton mode="modal">
               <Button className="bg-blue-500 hover:bg-blue-600">Sign Up</Button>
             </SignUpButton>
           </SignedOut>

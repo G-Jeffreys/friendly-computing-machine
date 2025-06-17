@@ -4,13 +4,14 @@ import { getDocumentsAction } from "@/actions/db/documents-actions"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { auth } from "@clerk/nextjs/server"
+import SignInCTA from "@/app/documents/_components/sign-in-cta"
 
 export default async function DocumentsPage() {
   const { userId } = await auth()
   if (!userId) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p>Please sign in to view your documents.</p>
+        <SignInCTA />
       </div>
     )
   }

@@ -16,13 +16,13 @@ export default async function TodoPage() {
   const { userId } = await auth()
 
   if (!userId) {
-    return redirect("/login")
+    return redirect("/sign-in")
   }
 
   const { data: profile } = await getProfileByUserIdAction(userId)
 
   if (!profile) {
-    return redirect("/signup")
+    return redirect("/sign-up")
   }
 
   if (profile.membership === "free") {
