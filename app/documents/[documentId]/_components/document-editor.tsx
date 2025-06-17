@@ -70,19 +70,22 @@ export default function DocumentEditor({
     return result
   }, [])
 
-  // Debounced analysis – runs after user stops typing for DEBOUNCE_MS
-  const handleEditorKeyDown = () => {
-    if (analysisTimeoutRef.current) {
-      clearTimeout(analysisTimeoutRef.current)
-    }
-  }
+  // Handle typing – update UI immediately and debounce expensive analysis
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value
 
-  const handleEditorKeyUp = () => {
+    // 1. Immediate optimistic UI update so characters appear in real-time.
+    setContent(newText)
+    // Render without highlights first for snappy feedback. Detailed highlighting
+    // will be applied once the (debounced) analysis completes.
+    setHighlightedHtml(escapeHtml(newText))
+
+    // 2. Debounce heavy analysis work.
     if (analysisTimeoutRef.current) {
       clearTimeout(analysisTimeoutRef.current)
     }
     analysisTimeoutRef.current = setTimeout(() => {
-      runChecks(content)
+      runChecks(newText)
     }, DEBOUNCE_MS)
   }
 
@@ -200,9 +203,7 @@ export default function DocumentEditor({
           {/* textarea layer */}
           <textarea
             value={content}
-            onChange={e => setContent(e.target.value)}
-            onKeyDown={handleEditorKeyDown}
-            onKeyUp={handleEditorKeyUp}
+            onChange={handleContentChange}
             ref={textareaRef}
             className="absolute inset-0 size-full resize-none rounded border bg-transparent p-4 text-transparent caret-black outline-none selection:bg-blue-200"
             style={{ WebkitTextFillColor: "transparent" }}
