@@ -5,6 +5,7 @@ import {
 } from "@/actions/db/documents-actions"
 import { getDocumentByIdAction } from "@/actions/db/documents-actions"
 import { NextResponse } from "next/server"
+import { sanitizeHtml } from "@/lib/sanitize-html"
 
 export async function PATCH(
   request: Request,
@@ -17,7 +18,17 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { title, content, updatedAt: clientUpdatedAt } = body
+    let { title, content, updatedAt: clientUpdatedAt } = body
+
+    // Sanitise incoming HTML to enforce allow-list on the server as well.
+    if (typeof content === "string") {
+      // eslint-disable-next-line no-console
+      console.log(
+        "[API/documents] Sanitising incoming HTML of length",
+        content.length
+      )
+      content = sanitizeHtml(content)
+    }
 
     const { documentId } = await params
 

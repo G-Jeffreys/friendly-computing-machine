@@ -9,10 +9,25 @@ import { Suggestion } from "@/lib/hooks/use-spell-grammar"
 import { useAnalyser } from "@/lib/hooks/use-analyser"
 import { useRouter } from "next/navigation"
 import { debounce } from "@/lib/utils/debounce"
-import { sanitizeHtml } from "@/lib/sanitize-html"
 import { DEMO_WORD_LIMIT, DEMO_TIME_LIMIT_MS } from "@/lib/demo-constants"
 import OverlayModal from "@/components/ui/overlay-modal"
 import { useAutosave } from "@/lib/hooks/use-autosave"
+import { EditorContent, useEditor } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
+import UnderlineExt from "@tiptap/extension-underline"
+import LinkExt from "@tiptap/extension-link"
+import {
+  Bold as BoldIcon,
+  Italic as ItalicIcon,
+  Underline as UnderlineIcon,
+  Strikethrough as StrikeIcon,
+  List as ListIcon,
+  ListOrdered as ListOrderedIcon,
+  Undo as UndoIcon,
+  Redo as RedoIcon,
+  Link as LinkIcon
+} from "lucide-react"
+import { Editor as TipTapEditor } from "@tiptap/core"
 
 interface DocumentEditorProps {
   initialDocument: SelectDocument
@@ -25,7 +40,6 @@ export default function DocumentEditor({
   demoMode = false
 }: DocumentEditorProps) {
   const [title, setTitle] = useState(initialDocument.title)
-  const [content, setContent] = useState(initialDocument.content)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [readability, setReadability] = useState<number | null>(null)
   const [stats, setStats] = useState<{
@@ -34,13 +48,10 @@ export default function DocumentEditor({
     avgWordLength: number
     readingTimeMinutes: number
   } | null>(null)
-  const [highlightedHtml, setHighlightedHtml] = useState<string>("")
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
   const router = useRouter()
   const { analyse } = useAnalyser()
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const highlightRef = useRef<HTMLDivElement | null>(null)
 
   /* ---------------------------------------------------------------------- */
   /* Demo-mode state: enforce 100-word / 10-second blocker for anon users   */
@@ -56,6 +67,15 @@ export default function DocumentEditor({
       : new Date(initialDocument.updatedAt).toISOString()
   )
 
+  // Convert legacy plain-text documents to simple <p> blocks so TipTap can load them.
+  const initialHtml = initialDocument.content.includes("<")
+    ? initialDocument.content
+    : `<p>${initialDocument.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`
+
+  // content = HTML string managed by TipTap
+  const [content, setContent] = useState(initialHtml)
+  const [plainText, setPlainText] = useState<string>("")
+
   /* ---------------------------------------------------------------------- */
   /* Autosave hook – saves every 30 s when content/title change             */
   /* ---------------------------------------------------------------------- */
@@ -67,39 +87,54 @@ export default function DocumentEditor({
     updatedAt: updatedAtToken
   })
 
-  // Monitor word count and enforce limits when demoMode is enabled.
-  useEffect(() => {
-    if (!demoMode) return
+  // Instantiate TipTap editor. We memoise it so it isn't recreated on every render.
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      UnderlineExt,
+      LinkExt.configure({
+        HTMLAttributes: {
+          rel: "noopener noreferrer",
+          target: "_blank"
+        },
+        openOnClick: false
+      })
+    ],
+    content: initialHtml,
+    onUpdate: ({ editor }: { editor: TipTapEditor }) => {
+      const html = editor.getHTML()
+      const text = editor.getText()
 
-    const wordCount = content.trim().split(/\s+/).filter(Boolean).length
+      // keep plain text state for analysis/snippet rendering
+      setPlainText(text)
 
-    // When user exceeds word limit – start timer if not already started.
-    if (wordCount > DEMO_WORD_LIMIT) {
-      if (!timerRef.current) {
-        timerRef.current = setTimeout(() => {
-          setDemoBlocked(true)
-        }, DEMO_TIME_LIMIT_MS)
+      // 1. Keep React state in sync so autosave uses latest HTML.
+      setContent(html)
+
+      // 2. Demo limiter – replicate logic we used with textarea.
+      if (demoMode) {
+        const wordCount = text.trim().split(/\s+/).filter(Boolean).length
+
+        if (wordCount > DEMO_WORD_LIMIT) {
+          if (!timerRef.current) {
+            timerRef.current = setTimeout(
+              () => setDemoBlocked(true),
+              DEMO_TIME_LIMIT_MS
+            )
+          }
+        } else {
+          if (timerRef.current) {
+            clearTimeout(timerRef.current)
+            timerRef.current = null
+          }
+          if (demoBlocked) setDemoBlocked(false)
+        }
       }
-    } else {
-      // Word count dropped back below limit – reset timer & unblock.
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
-      if (demoBlocked) {
-        setDemoBlocked(false)
-      }
+
+      // 3. Trigger analysis (debounced).
+      debouncedRunChecks(text)
     }
-
-    // Cleanup on unmount
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, demoMode])
+  })
 
   // Debounced wrapper around the expensive analysis routine. Created once per
   // component instance so the underlying timer survives re-renders.
@@ -119,97 +154,6 @@ export default function DocumentEditor({
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#039;")
 
-  /**
-   * Generate HTML string for highlighted text.
-   *
-   * - Deduplicates overlapping/duplicate suggestions so each character is highlighted at most once.
-   * - Applies precedence: spell (red) > grammar (blue) > style (purple).
-   *
-   * This prevents the same word/phrase from being rendered multiple times when it belongs to
-   * multiple categories.
-   */
-  const generateHighlighted = useCallback((text: string, sgs: Suggestion[]) => {
-    if (!sgs.length) return escapeHtml(text)
-
-    // Priority values – higher means higher precedence.
-    const priority: Record<Suggestion["type"], number> = {
-      spell: 3,
-      grammar: 2,
-      style: 1
-    }
-
-    // Arrays to hold the winning suggestion type + its priority for every character.
-    const labels: Array<Suggestion["type"] | null> = Array(text.length).fill(
-      null
-    )
-    const prios: number[] = Array(text.length).fill(0)
-
-    // Mark characters according to highest-priority suggestion touching them.
-    for (const sg of sgs) {
-      const p = priority[sg.type]
-      const start = Math.max(0, sg.offset)
-      const end = Math.min(text.length, sg.offset + sg.length)
-      for (let i = start; i < end; i++) {
-        if (p > prios[i]) {
-          prios[i] = p
-          labels[i] = sg.type
-        }
-      }
-    }
-
-    // Helper to map type -> css classes.
-    const colorClass = (t: Suggestion["type"]) =>
-      t === "spell"
-        ? "text-red-600 underline decoration-red-600"
-        : t === "grammar"
-          ? "text-blue-600 underline decoration-blue-600"
-          : "text-purple-600 underline decoration-purple-600"
-
-    // Build final HTML by grouping consecutive characters with the same label.
-    let html = ""
-    let currentLabel: Suggestion["type"] | null = null
-    let buffer = ""
-
-    const flush = () => {
-      if (!buffer) return
-      if (currentLabel) {
-        html += `<span class="${colorClass(currentLabel)}">${escapeHtml(
-          buffer
-        )}</span>`
-      } else {
-        html += escapeHtml(buffer)
-      }
-      buffer = ""
-    }
-
-    for (let i = 0; i < text.length; i++) {
-      const label = labels[i]
-      if (label !== currentLabel) {
-        flush()
-        currentLabel = label
-      }
-      buffer += text[i]
-    }
-
-    flush()
-    return html
-  }, [])
-
-  // Handle typing – update UI immediately and debounce expensive analysis
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value
-
-    // 1. Immediate optimistic UI update so characters appear in real-time.
-    setContent(newText)
-    // Render without highlights first for snappy feedback. Detailed highlighting
-    // will be applied once the (debounced) analysis completes.
-    setHighlightedHtml(sanitizeHtml(escapeHtml(newText)))
-
-    // 2. Kick off (debounced) analysis – if the user keeps typing the call is
-    //    postponed until they've paused for the configured delay.
-    debouncedRunChecks(newText)
-  }
-
   const runChecks = async (text: string) => {
     const res = await analyse(text)
     const map = new Map(res.suggestions.map(s => [s.id, s]))
@@ -221,35 +165,6 @@ export default function DocumentEditor({
       avgWordLength: res.avgWordLength,
       readingTimeMinutes: res.readingTimeMinutes
     })
-    setHighlightedHtml(
-      sanitizeHtml(generateHighlighted(text, Array.from(map.values())))
-    )
-  }
-
-  const applySuggestion = (sg: Suggestion, replacement: string) => {
-    const before = content.slice(0, sg.offset)
-    const after = content.slice(sg.offset + sg.length)
-    const newContent = `${before}${replacement}${after}`
-
-    const diff = replacement.length - sg.length
-
-    // 1) Optimistic UI update – remove resolved suggestion, shift later offsets
-    startTransition(() => {
-      const updatedSuggestions = suggestions
-        .filter(s => s.id !== sg.id)
-        .map(s =>
-          s.offset > sg.offset ? { ...s, offset: s.offset + diff } : s
-        )
-
-      setContent(newContent)
-      setSuggestions(updatedSuggestions)
-      setHighlightedHtml(
-        sanitizeHtml(generateHighlighted(newContent, updatedSuggestions))
-      )
-    })
-
-    // 2) Background re-analysis to get fresh results
-    setTimeout(() => runChecks(newContent), 0)
   }
 
   const handleSave = () => {
@@ -321,25 +236,12 @@ export default function DocumentEditor({
 
   // Run checks once after component mounts to analyze saved document
   useEffect(() => {
-    runChecks(initialDocument.content)
-  }, [])
-
-  // keep highlight layer in sync with textarea scroll
-  useEffect(() => {
-    const ta = textareaRef.current
-    const hl = highlightRef.current
-    if (!ta || !hl) return
-
-    const handleScroll = () => {
-      hl.scrollTop = ta.scrollTop
-      hl.scrollLeft = ta.scrollLeft
+    if (editor) {
+      setPlainText(editor.getText())
+      runChecks(editor.getText())
     }
-
-    ta.addEventListener("scroll", handleScroll)
-    return () => {
-      ta.removeEventListener("scroll", handleScroll)
-    }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor])
 
   /* -------------------------- Keyboard Short-cuts -------------------------- */
   // Ctrl/Cmd + S → save;  Ctrl/Cmd + Enter → run analysis immediately
@@ -358,8 +260,8 @@ export default function DocumentEditor({
 
       if (e.key === "Enter") {
         e.preventDefault()
-        // Run checks immediately, bypassing debounce.
-        runChecks(textareaRef.current?.value || "")
+        // Run checks immediately on current plain text.
+        runChecks(editor?.getText() || "")
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -391,24 +293,90 @@ export default function DocumentEditor({
 
       <div className="flex gap-6">
         {/* Editor with highlight overlay */}
-        <div className="relative max-h-[60vh] min-h-[50vh] flex-1">
-          {/* highlight layer */}
-          <div
-            ref={highlightRef}
-            className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words p-4 text-base"
-            aria-hidden="true"
-            dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-          />
+        <div className="relative flex-1">
+          {/* Toolbar – fixed inside the editor container */}
+          <div className="bg-background sticky top-0 z-10 flex gap-1 border-b p-2">
+            <Button
+              size="icon"
+              variant={editor?.isActive("bold") ? "default" : "secondary"}
+              onClick={() => editor?.chain().focus().toggleBold().run()}
+            >
+              <BoldIcon className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={editor?.isActive("italic") ? "default" : "secondary"}
+              onClick={() => editor?.chain().focus().toggleItalic().run()}
+            >
+              <ItalicIcon className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={editor?.isActive("underline") ? "default" : "secondary"}
+              onClick={() => editor?.chain().focus().toggleUnderline().run()}
+            >
+              <UnderlineIcon className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={editor?.isActive("strike") ? "default" : "secondary"}
+              onClick={() => editor?.chain().focus().toggleStrike().run()}
+            >
+              <StrikeIcon className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={editor?.isActive("bulletList") ? "default" : "secondary"}
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+            >
+              <ListIcon className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={
+                editor?.isActive("orderedList") ? "default" : "secondary"
+              }
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+            >
+              <ListOrderedIcon className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={() => {
+                const url = prompt("Enter URL")
+                if (url) {
+                  editor
+                    ?.chain()
+                    .focus()
+                    .extendMarkRange("link")
+                    .setLink({ href: url })
+                    .run()
+                }
+              }}
+            >
+              <LinkIcon className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={() => editor?.chain().focus().undo().run()}
+            >
+              <UndoIcon className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={() => editor?.chain().focus().redo().run()}
+            >
+              <RedoIcon className="size-4" />
+            </Button>
+          </div>
 
-          {/* textarea layer */}
-          <textarea
-            value={content}
-            onChange={handleContentChange}
-            ref={textareaRef}
-            className="absolute inset-0 size-full resize-none rounded border bg-transparent p-4 text-transparent caret-black outline-none selection:bg-blue-200"
-            role="textbox"
-            aria-label="Document content editor"
-            style={{ WebkitTextFillColor: "transparent" }}
+          {/* TipTap editor content */}
+          <EditorContent
+            editor={editor}
+            className="prose dark:prose-invert max-h-[60vh] min-h-[50vh] overflow-auto p-4 focus:outline-none"
           />
         </div>
 
@@ -433,24 +401,10 @@ export default function DocumentEditor({
                           : "text-purple-600"
                     }
                   >
-                    {content.substring(sg.offset, sg.offset + sg.length)}
+                    {plainText.substring(sg.offset, sg.offset + sg.length)}
                   </span>
                   : {sg.message}
                 </p>
-                {sg.replacements.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {sg.replacements.slice(0, 3).map(rep => (
-                      <Button
-                        key={rep}
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => applySuggestion(sg, rep)}
-                      >
-                        {rep}
-                      </Button>
-                    ))}
-                  </div>
-                )}
               </div>
             ))
           )}

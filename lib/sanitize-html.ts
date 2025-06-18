@@ -35,8 +35,46 @@ export function sanitizeHtml(unsafeHtml: string): string {
     purifier = createDOMPurify(window)
   }
 
+  // ---------------------------------------------------------------------------
+  // Define strict allow-lists that match the limited feature-set of our editor.
+  // ---------------------------------------------------------------------------
+  const ALLOWED_TAGS = [
+    "p",
+    "br",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "blockquote",
+    "pre",
+    "code",
+    "ol",
+    "ul",
+    "li",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "del",
+    "strike",
+    "a",
+    "span"
+  ] as const
+
+  const ALLOWED_ATTR = [
+    "class",
+    "href",
+    "rel",
+    "target",
+    /^data-tiptap-.*/ // allow TipTap data attributes
+  ] as const
+
   const clean = (purifier as any).sanitize(unsafeHtml, {
-    USE_PROFILES: { html: true }
+    ALLOWED_TAGS,
+    ALLOWED_ATTR
   }) as string
   // eslint-disable-next-line no-console
   console.log("[sanitize-html] sanitised html length", clean.length)
