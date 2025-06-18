@@ -84,6 +84,10 @@ export default function Header() {
           <ThemeSwitcher />
 
           <SignedOut>
+            <Link href="/demo">
+              <Button variant="ghost">Try Demo</Button>
+            </Link>
+
             <SignInButton mode="modal">
               <Button variant="outline">Sign In</Button>
             </SignInButton>
@@ -124,6 +128,15 @@ export default function Header() {
                 onClick={toggleMenu}
               >
                 Home
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/demo"
+                className="block hover:underline"
+                onClick={toggleMenu}
+              >
+                Try Demo
               </Link>
             </li>
             {navLinks.map(link => (

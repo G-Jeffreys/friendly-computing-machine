@@ -17,12 +17,17 @@ const DocumentEditor = dynamic(() => import("./document-editor"), {
 
 interface DocumentEditorLazyProps {
   initialDocument: SelectDocument
+  /** Set to true when used in the anonymous demo route */
+  demoMode?: boolean
 }
 
 export default function DocumentEditorLazy({
-  initialDocument
+  initialDocument,
+  demoMode = false
 }: DocumentEditorLazyProps) {
   // NOTE: we can't simply re-export the dynamic import because we need to pass
   // props through, so we wrap it in a thin component.
-  return <DocumentEditor initialDocument={initialDocument} />
+  return (
+    <DocumentEditor initialDocument={initialDocument} demoMode={demoMode} />
+  )
 }

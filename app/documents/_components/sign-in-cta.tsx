@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { SignInButton, SignUpButton } from "@clerk/nextjs"
+import Link from "next/link"
 
 export default function SignInCTA() {
   return (
@@ -10,7 +11,11 @@ export default function SignInCTA() {
         Please sign in to view your documents.
       </p>
 
-      <div className="flex space-x-4">
+      <div className="flex flex-wrap justify-center gap-4">
+        <Link href="/demo">
+          <Button variant="ghost">Try Demo</Button>
+        </Link>
+
         <SignInButton mode="modal">
           <Button variant="outline">Sign In</Button>
         </SignInButton>

@@ -10,13 +10,18 @@ import { useAnalyser } from "@/lib/hooks/use-analyser"
 import { useRouter } from "next/navigation"
 import { debounce } from "@/lib/utils/debounce"
 import { sanitizeHtml } from "@/lib/sanitize-html"
+import { DEMO_WORD_LIMIT, DEMO_TIME_LIMIT_MS } from "@/lib/demo-constants"
+import OverlayModal from "@/components/ui/overlay-modal"
 
 interface DocumentEditorProps {
   initialDocument: SelectDocument
+  /** When true the component runs in anonymous demo mode and enforces word/time limits. */
+  demoMode?: boolean
 }
 
 export default function DocumentEditor({
-  initialDocument
+  initialDocument,
+  demoMode = false
 }: DocumentEditorProps) {
   const [title, setTitle] = useState(initialDocument.title)
   const [content, setContent] = useState(initialDocument.content)
@@ -35,6 +40,46 @@ export default function DocumentEditor({
   const { analyse } = useAnalyser()
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const highlightRef = useRef<HTMLDivElement | null>(null)
+
+  /* ---------------------------------------------------------------------- */
+  /* Demo-mode state: enforce 100-word / 10-second blocker for anon users   */
+  /* ---------------------------------------------------------------------- */
+  const [demoBlocked, setDemoBlocked] = useState(false)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Monitor word count and enforce limits when demoMode is enabled.
+  useEffect(() => {
+    if (!demoMode) return
+
+    const wordCount = content.trim().split(/\s+/).filter(Boolean).length
+
+    // When user exceeds word limit – start timer if not already started.
+    if (wordCount > DEMO_WORD_LIMIT) {
+      if (!timerRef.current) {
+        timerRef.current = setTimeout(() => {
+          setDemoBlocked(true)
+        }, DEMO_TIME_LIMIT_MS)
+      }
+    } else {
+      // Word count dropped back below limit – reset timer & unblock.
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      if (demoBlocked) {
+        setDemoBlocked(false)
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, demoMode])
 
   // Debounced wrapper around the expensive analysis routine. Created once per
   // component instance so the underlying timer survives re-renders.
@@ -188,6 +233,11 @@ export default function DocumentEditor({
   }
 
   const handleSave = () => {
+    if (demoMode) {
+      setDemoBlocked(true)
+      return
+    }
+
     startTransition(async () => {
       try {
         const res = await fetch(`/api/documents/${initialDocument.id}`, {
@@ -209,6 +259,11 @@ export default function DocumentEditor({
   }
 
   const handleDelete = () => {
+    if (demoMode) {
+      setDemoBlocked(true)
+      return
+    }
+
     if (
       !confirm(
         "Are you sure you want to delete this document? This action cannot be undone."
@@ -291,14 +346,16 @@ export default function DocumentEditor({
 
   return (
     <div className="space-y-4">
-      <div>
-        <Link
-          href="/documents"
-          className="text-sm text-blue-600 hover:underline"
-        >
-          &larr; Back to Documents
-        </Link>
-      </div>
+      {!demoMode && (
+        <div>
+          <Link
+            href="/documents"
+            className="text-sm text-blue-600 hover:underline"
+          >
+            &larr; Back to Documents
+          </Link>
+        </div>
+      )}
       <input
         value={title}
         onChange={e => setTitle(e.target.value)}
@@ -402,6 +459,9 @@ export default function DocumentEditor({
           {isPending ? "Please wait..." : "Delete"}
         </Button>
       </div>
+
+      {/* Demo overlay – blocks interaction after word/time limit */}
+      {demoMode && <OverlayModal open={demoBlocked} />}
     </div>
   )
 }
