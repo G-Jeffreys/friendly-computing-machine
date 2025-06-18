@@ -1,6 +1,4 @@
 #!/usr/bin/env sh
 
-. "$(dirname -- "$0")/_/husky.sh"
-
-# Run lint-staged on only the staged files to keep commit times low.
+# Husky v9+ no longer needs the old `_` helper script. Keep the hook minimal.
 npx lint-staged
