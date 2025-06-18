@@ -12,6 +12,7 @@ import { debounce } from "@/lib/utils/debounce"
 import { sanitizeHtml } from "@/lib/sanitize-html"
 import { DEMO_WORD_LIMIT, DEMO_TIME_LIMIT_MS } from "@/lib/demo-constants"
 import OverlayModal from "@/components/ui/overlay-modal"
+import { useAutosave } from "@/lib/hooks/use-autosave"
 
 interface DocumentEditorProps {
   initialDocument: SelectDocument
@@ -46,6 +47,25 @@ export default function DocumentEditor({
   /* ---------------------------------------------------------------------- */
   const [demoBlocked, setDemoBlocked] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Keep track of the latest updatedAt value returned by the server so both
+  // manual saves and autosave share a single optimistic-concurrency token.
+  const [updatedAtToken, setUpdatedAtToken] = useState(
+    typeof initialDocument.updatedAt === "string"
+      ? initialDocument.updatedAt
+      : new Date(initialDocument.updatedAt).toISOString()
+  )
+
+  /* ---------------------------------------------------------------------- */
+  /* Autosave hook – saves every 30 s when content/title change             */
+  /* ---------------------------------------------------------------------- */
+  const { secondsSinceLastSave, markSaved } = useAutosave({
+    title,
+    content,
+    documentId: initialDocument.id,
+    demoMode,
+    updatedAt: updatedAtToken
+  })
 
   // Monitor word count and enforce limits when demoMode is enabled.
   useEffect(() => {
@@ -243,11 +263,18 @@ export default function DocumentEditor({
         const res = await fetch(`/api/documents/${initialDocument.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, content })
+          body: JSON.stringify({
+            title,
+            content,
+            updatedAt: updatedAtToken
+          })
         })
         if (!res.ok) {
           throw new Error("Failed to save")
         }
+        const data = await res.json()
+        markSaved(data.updatedAt)
+        setUpdatedAtToken(data.updatedAt)
         toast({ title: "Document saved" })
         // Refresh layouts (sidebar) so any title change is reflected instantly.
         router.refresh()
@@ -447,17 +474,26 @@ export default function DocumentEditor({
         </aside>
       </div>
 
-      <div className="mt-4 flex gap-2">
-        <Button onClick={handleSave} disabled={isPending}>
-          {isPending ? "Saving..." : "Save"}
-        </Button>
-        <Button
-          onClick={handleDelete}
-          disabled={isPending}
-          variant="destructive"
-        >
-          {isPending ? "Please wait..." : "Delete"}
-        </Button>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={isPending}>
+            {isPending ? "Saving..." : "Save"}
+          </Button>
+          <Button
+            onClick={handleDelete}
+            disabled={isPending}
+            variant="destructive"
+          >
+            {isPending ? "Please wait..." : "Delete"}
+          </Button>
+        </div>
+
+        {/* Autosave status */}
+        {!demoMode && (
+          <p className="text-muted-foreground text-sm sm:ml-4">
+            {secondsSinceLastSave} seconds since last autosave
+          </p>
+        )}
       </div>
 
       {/* Demo overlay – blocks interaction after word/time limit */}
