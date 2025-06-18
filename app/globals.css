@@ -86,6 +86,7 @@ Global styles for the app.
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    /* Use the default sans-serif font (Inter loaded in RootLayout) */
+    @apply bg-background text-foreground font-sans;
   }
 }

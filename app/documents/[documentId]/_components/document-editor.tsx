@@ -199,6 +199,8 @@ export default function DocumentEditor({
           throw new Error("Failed to save")
         }
         toast({ title: "Document saved" })
+        // Refresh layouts (sidebar) so any title change is reflected instantly.
+        router.refresh()
       } catch (error) {
         console.error(error)
         toast({ title: "Save failed", variant: "destructive" })
@@ -225,6 +227,9 @@ export default function DocumentEditor({
         }
         toast({ title: "Document deleted" })
         router.push("/documents")
+        // Force a revalidation of server components on the client to make
+        // sure the sidebar and list reflect the removed document.
+        router.refresh()
       } catch (error) {
         console.error(error)
         toast({ title: "Delete failed", variant: "destructive" })
