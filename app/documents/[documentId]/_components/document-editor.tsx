@@ -9,6 +9,7 @@ import { Suggestion } from "@/lib/hooks/use-spell-grammar"
 import { useAnalyser } from "@/lib/hooks/use-analyser"
 import { useRouter } from "next/navigation"
 import { debounce } from "@/lib/utils/debounce"
+import { sanitizeHtml } from "@/lib/sanitize-html"
 
 interface DocumentEditorProps {
   initialDocument: SelectDocument
@@ -137,7 +138,7 @@ export default function DocumentEditor({
     setContent(newText)
     // Render without highlights first for snappy feedback. Detailed highlighting
     // will be applied once the (debounced) analysis completes.
-    setHighlightedHtml(escapeHtml(newText))
+    setHighlightedHtml(sanitizeHtml(escapeHtml(newText)))
 
     // 2. Kick off (debounced) analysis – if the user keeps typing the call is
     //    postponed until they've paused for the configured delay.
@@ -155,7 +156,9 @@ export default function DocumentEditor({
       avgWordLength: res.avgWordLength,
       readingTimeMinutes: res.readingTimeMinutes
     })
-    setHighlightedHtml(generateHighlighted(text, Array.from(map.values())))
+    setHighlightedHtml(
+      sanitizeHtml(generateHighlighted(text, Array.from(map.values())))
+    )
   }
 
   const applySuggestion = (sg: Suggestion, replacement: string) => {
@@ -175,7 +178,9 @@ export default function DocumentEditor({
 
       setContent(newContent)
       setSuggestions(updatedSuggestions)
-      setHighlightedHtml(generateHighlighted(newContent, updatedSuggestions))
+      setHighlightedHtml(
+        sanitizeHtml(generateHighlighted(newContent, updatedSuggestions))
+      )
     })
 
     // 2) Background re-analysis to get fresh results
