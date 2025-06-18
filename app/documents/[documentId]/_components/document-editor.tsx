@@ -190,7 +190,14 @@ export default function DocumentEditor({
       const html = editor.getHTML()
       const text = editor.getText()
 
-      // keep plain text state for analysis/snippet rendering
+      // ProseMirror represents each paragraph as a separate node without
+      // storing the newline character itself. By **removing** (not replacing)
+      // newline characters before sending text to LanguageTool we ensure the
+      // offsets it returns line up 1-to-1 with the character positions that
+      // `buildCharPositions` derives from the TipTap document.
+      const cleanedText = text.replace(/\n/g, "")
+
+      // keep plain text state (original, still with newlines) for UI snippets
       setPlainText(text)
 
       // 1. Keep React state in sync so autosave uses latest HTML.
@@ -198,7 +205,7 @@ export default function DocumentEditor({
 
       // 2. Demo limiter – replicate logic we used with textarea.
       if (demoMode) {
-        const wordCount = text.trim().split(/\s+/).filter(Boolean).length
+        const wordCount = cleanedText.trim().split(/\s+/).filter(Boolean).length
 
         if (wordCount > DEMO_WORD_LIMIT) {
           if (!timerRef.current) {
@@ -217,17 +224,17 @@ export default function DocumentEditor({
       }
 
       // 3. Trigger analysis (debounced).
-      debouncedRunChecks(text)
+      debouncedRunChecks(cleanedText)
     }
   })
 
   // Debounced wrapper around the expensive analysis routine. Created once per
   // component instance so the underlying timer survives re-renders.
   const debouncedRunChecks = useRef(
-    debounce((text: string) => {
+    debounce((txt: string) => {
       // eslint-disable-next-line no-console
       console.log("[DocumentEditor] debouncedRunChecks executing")
-      runChecks(text)
+      runChecks(txt)
     }, 750)
   ).current
 
@@ -239,8 +246,8 @@ export default function DocumentEditor({
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#039;")
 
-  const runChecks = async (text: string) => {
-    const res = await analyse(text)
+  const runChecks = async (input: string) => {
+    const res = await analyse(input)
     const map = new Map(res.suggestions.map(s => [s.id, s]))
     const unique = Array.from(map.values())
     setSuggestions(unique)
@@ -339,8 +346,9 @@ export default function DocumentEditor({
   // Run checks once after component mounts to analyze saved document
   useEffect(() => {
     if (editor) {
-      setPlainText(editor.getText())
-      runChecks(editor.getText())
+      const initialText = editor.getText()
+      setPlainText(initialText)
+      runChecks(initialText.replace(/\n/g, ""))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor])
@@ -363,7 +371,8 @@ export default function DocumentEditor({
       if (e.key === "Enter") {
         e.preventDefault()
         // Run checks immediately on current plain text.
-        runChecks(editor?.getText() || "")
+        const cleanNow = (editor?.getText() || "").replace(/\n/g, "")
+        runChecks(cleanNow)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

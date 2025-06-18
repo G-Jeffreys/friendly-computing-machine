@@ -4,6 +4,8 @@ import { getDocumentByIdAction } from "@/actions/db/documents-actions"
 import DocumentEditorLazy from "./_components/document-editor-lazy"
 import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
+import { Suspense } from "react"
+import DocumentSkeleton from "./_components/document-skeleton"
 
 export default async function DocumentPage({
   params
@@ -17,14 +19,20 @@ export default async function DocumentPage({
 
   const { documentId } = await params
 
+  // Performance logging – measure the DB fetch time explicitly.
+  console.time("[DocumentPage] fetchDocument")
   const res = await getDocumentByIdAction(userId, documentId)
+  console.timeEnd("[DocumentPage] fetchDocument")
+
   if (!res.isSuccess) {
     notFound()
   }
 
   return (
     <div className="mx-auto max-w-4xl py-8">
-      <DocumentEditorLazy initialDocument={res.data} />
+      <Suspense fallback={<DocumentSkeleton />}>
+        <DocumentEditorLazy initialDocument={res.data} />
+      </Suspense>
     </div>
   )
 }
