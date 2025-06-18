@@ -2,6 +2,7 @@
   Web Worker: performs heavy text analysis off the main thread.
 */
 import writeGood from "write-good"
+import { callLLM } from "@/lib/ai/llm"
 
 interface WorkerRequest {
   id: string
@@ -42,13 +43,15 @@ function fleschReadingEase(text: string) {
 
 async function runLanguageTool(text: string): Promise<Suggestion[]> {
   if (!text.trim()) return []
+
   try {
-    const res = await fetch("https://api.languagetool.org/v2/check", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ language: "en-US", text })
+    // Delegate to the generic LLM helper which internally knows how to call LanguageTool.
+    const data = await callLLM<any>({
+      provider: "languageTool",
+      params: { text, language: "en-US" },
+      cacheKey: `lt-${text}`
     })
-    const data = await res.json()
+
     const suggestions: Suggestion[] = data.matches.map((m: any) => ({
       id: `${m.rule.id}-${m.offset}`,
       offset: m.offset,
@@ -57,9 +60,10 @@ async function runLanguageTool(text: string): Promise<Suggestion[]> {
       replacements: m.replacements.map((r: any) => r.value),
       type: m.rule.issueType === "misspelling" ? "spell" : "grammar"
     }))
+
     return suggestions
   } catch (e) {
-    // return empty on failure
+    console.error("LanguageTool via callLLM failed", e)
     return []
   }
 }

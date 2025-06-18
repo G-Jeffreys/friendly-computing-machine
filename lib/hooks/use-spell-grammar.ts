@@ -1,4 +1,5 @@
 import { useCallback } from "react"
+import { callLLM } from "@/lib/ai/llm"
 
 export interface Suggestion {
   id: string
@@ -14,16 +15,11 @@ export function useSpellGrammarCheck() {
     if (!text.trim()) return []
 
     try {
-      const res = await fetch("https://api.languagetool.org/v2/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          text,
-          language: "en-US"
-        })
+      const data = await callLLM<any>({
+        provider: "languageTool",
+        params: { text, language: "en-US" },
+        cacheKey: `lt-${text}`
       })
-
-      const data = await res.json()
 
       const suggestions: Suggestion[] = data.matches.map((match: any) => ({
         id: `${match.rule.id}-${match.offset}`,
@@ -33,6 +29,7 @@ export function useSpellGrammarCheck() {
         replacements: match.replacements.map((r: any) => r.value),
         type: match.rule.issueType === "misspelling" ? "spell" : "grammar"
       }))
+
       return suggestions
     } catch (error) {
       console.error("Spell/grammar check failed", error)

@@ -15,7 +15,7 @@ export default function SignInPage() {
 
   return (
     <SignIn
-      forceRedirectUrl="/todo"
+      forceRedirectUrl="/documents"
       appearance={{ baseTheme: theme === "dark" ? dark : undefined }}
     />
   )

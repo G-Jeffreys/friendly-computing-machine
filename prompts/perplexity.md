@@ -1,6 +1,6 @@
 # Perplexity Instructions
 
-Follow these instructions to use Perplexity:
+Follow these instructions to use Perplexity (NEVER use hyphens in output):
 
 - think carefully about the user's query
 - generate a prompt to help search for an answer
