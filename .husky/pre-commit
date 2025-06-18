@@ -2,4 +2,5 @@
 
 . "$(dirname -- "$0")/_/husky.sh"
 
-npm run lint:fix && npm run format:write && git add .
+# Run lint-staged on only the staged files to keep commit times low.
+npx lint-staged
