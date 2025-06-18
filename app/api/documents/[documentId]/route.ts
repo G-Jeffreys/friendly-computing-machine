@@ -49,7 +49,11 @@ export async function PATCH(
 
     if (clientUpdatedAt && clientUpdatedAt !== serverUpdatedAt) {
       return NextResponse.json(
-        { message: "Document has been modified elsewhere." },
+        {
+          message:
+            "Document modified by another tab or autosave. Returning latest timestamp.",
+          updatedAt: serverUpdatedAt
+        },
         { status: 409 }
       )
     }

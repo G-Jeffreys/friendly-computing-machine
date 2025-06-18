@@ -137,6 +137,21 @@ export function useAutosave({
         })
       })
 
+      if (res.status === 409) {
+        const conflict = await res.json()
+        console.warn(
+          "[Autosave] Conflict – updating timestamp",
+          conflict.updatedAt
+        )
+        if (typeof conflict.updatedAt === "string") {
+          updatedAtRef.current = conflict.updatedAt
+          isDirtyRef.current = false
+          secondsSinceSaveRef.current = 0
+          setSecondsSinceLastSave(0)
+        }
+        return
+      }
+
       if (!res.ok) {
         const msg = await res.text()
         throw new Error(`HTTP ${res.status}: ${msg}`)
@@ -144,13 +159,10 @@ export function useAutosave({
 
       const data: { updatedAt: string } = await res.json()
 
-      // Success – update refs and reset state.
       updatedAtRef.current = data.updatedAt
       isDirtyRef.current = false
       secondsSinceSaveRef.current = 0
       setSecondsSinceLastSave(0)
-
-      console.log("[Autosave] success – new updatedAt", data.updatedAt)
     } catch (err: any) {
       console.error("[Autosave] error", err)
       const msg = err instanceof Error ? err.message : String(err)

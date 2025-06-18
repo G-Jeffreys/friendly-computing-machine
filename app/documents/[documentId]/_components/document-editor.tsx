@@ -184,15 +184,23 @@ export default function DocumentEditor({
             updatedAt: updatedAtToken
           })
         })
-        if (!res.ok) {
+        if (res.status === 409) {
+          const conflict = await res.json()
+          if (typeof conflict.updatedAt === "string") {
+            setUpdatedAtToken(conflict.updatedAt)
+            markSaved(conflict.updatedAt)
+          }
+          console.warn("[DocumentEditor] save conflict – ignoring pop-up")
+        } else if (!res.ok) {
           throw new Error("Failed to save")
+        } else {
+          const data = await res.json()
+          markSaved(data.updatedAt)
+          setUpdatedAtToken(data.updatedAt)
+          toast({ title: "Document saved" })
+          // Refresh layouts (sidebar) so any title change is reflected instantly.
+          router.refresh()
         }
-        const data = await res.json()
-        markSaved(data.updatedAt)
-        setUpdatedAtToken(data.updatedAt)
-        toast({ title: "Document saved" })
-        // Refresh layouts (sidebar) so any title change is reflected instantly.
-        router.refresh()
       } catch (error) {
         console.error(error)
         toast({ title: "Save failed", variant: "destructive" })
