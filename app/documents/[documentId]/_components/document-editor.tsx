@@ -8,7 +8,7 @@ import Link from "next/link"
 import { Suggestion } from "@/lib/hooks/use-spell-grammar"
 import { useAnalyser } from "@/lib/hooks/use-analyser"
 import { useRouter } from "next/navigation"
-import { sanitizeHtml } from "@/lib/sanitize-html"
+import { debounce } from "@/lib/utils/debounce"
 
 interface DocumentEditorProps {
   initialDocument: SelectDocument
@@ -32,10 +32,18 @@ export default function DocumentEditor({
   const { toast } = useToast()
   const router = useRouter()
   const { analyse } = useAnalyser()
-  const analysisTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const DEBOUNCE_MS = 750
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const highlightRef = useRef<HTMLDivElement | null>(null)
+
+  // Debounced wrapper around the expensive analysis routine. Created once per
+  // component instance so the underlying timer survives re-renders.
+  const debouncedRunChecks = useRef(
+    debounce((text: string) => {
+      // eslint-disable-next-line no-console
+      console.log("[DocumentEditor] debouncedRunChecks executing")
+      runChecks(text)
+    }, 750)
+  ).current
 
   const escapeHtml = (str: string) =>
     str
@@ -129,15 +137,11 @@ export default function DocumentEditor({
     setContent(newText)
     // Render without highlights first for snappy feedback. Detailed highlighting
     // will be applied once the (debounced) analysis completes.
-    setHighlightedHtml(sanitizeHtml(escapeHtml(newText)))
+    setHighlightedHtml(escapeHtml(newText))
 
-    // 2. Debounce heavy analysis work.
-    if (analysisTimeoutRef.current) {
-      clearTimeout(analysisTimeoutRef.current)
-    }
-    analysisTimeoutRef.current = setTimeout(() => {
-      runChecks(newText)
-    }, DEBOUNCE_MS)
+    // 2. Kick off (debounced) analysis – if the user keeps typing the call is
+    //    postponed until they've paused for the configured delay.
+    debouncedRunChecks(newText)
   }
 
   const runChecks = async (text: string) => {
@@ -151,9 +155,7 @@ export default function DocumentEditor({
       avgWordLength: res.avgWordLength,
       readingTimeMinutes: res.readingTimeMinutes
     })
-    setHighlightedHtml(
-      sanitizeHtml(generateHighlighted(text, Array.from(map.values())))
-    )
+    setHighlightedHtml(generateHighlighted(text, Array.from(map.values())))
   }
 
   const applySuggestion = (sg: Suggestion, replacement: string) => {
@@ -173,9 +175,7 @@ export default function DocumentEditor({
 
       setContent(newContent)
       setSuggestions(updatedSuggestions)
-      setHighlightedHtml(
-        sanitizeHtml(generateHighlighted(newContent, updatedSuggestions))
-      )
+      setHighlightedHtml(generateHighlighted(newContent, updatedSuggestions))
     })
 
     // 2) Background re-analysis to get fresh results
@@ -230,12 +230,6 @@ export default function DocumentEditor({
   // Run checks once after component mounts to analyze saved document
   useEffect(() => {
     runChecks(initialDocument.content)
-    return () => {
-      if (analysisTimeoutRef.current) {
-        clearTimeout(analysisTimeoutRef.current)
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // keep highlight layer in sync with textarea scroll

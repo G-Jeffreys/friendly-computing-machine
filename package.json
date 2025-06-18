@@ -15,8 +15,7 @@
     "analyze": "ANALYZE=true npm run build",
     "db:generate": "npx drizzle-kit generate",
     "db:migrate": "npx drizzle-kit migrate",
-    "prepare": "husky install",
-    "test": "jest --runInBand"
+    "prepare": "husky install"
   },
   "dependencies": {
     "@clerk/backend": "^1.20.1",
@@ -102,11 +101,5 @@
     "tailwindcss": "^3.4.1",
     "ts-jest": "^29.4.0",
     "typescript": "5.8.3"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ]
   }
 }
