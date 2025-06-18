@@ -1,7 +1,14 @@
 "use client"
 
 import { SelectDocument } from "@/db/schema/documents-schema"
-import { useState, useTransition, useEffect, useRef, useCallback } from "react"
+import {
+  useState,
+  useTransition,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo
+} from "react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -27,7 +34,9 @@ import {
   Redo as RedoIcon,
   Link as LinkIcon
 } from "lucide-react"
-import { Editor as TipTapEditor } from "@tiptap/core"
+import { Editor as TipTapEditor, Extension } from "@tiptap/core"
+import { Plugin, PluginKey } from "@tiptap/pm/state"
+import { Decoration, DecorationSet } from "@tiptap/pm/view"
 
 interface DocumentEditorProps {
   initialDocument: SelectDocument
@@ -87,6 +96,81 @@ export default function DocumentEditor({
     updatedAt: updatedAtToken
   })
 
+  // --------------------------------------------------------------------
+  // Inline suggestion highlight – TipTap Decoration plugin
+  // --------------------------------------------------------------------
+
+  const suggestionsRef = useRef<Suggestion[]>([])
+
+  const decorationKey = useMemo(
+    () => new PluginKey("spellGrammarHighlight"),
+    []
+  )
+
+  const buildCharPositions = (doc: any) => {
+    const arr: number[] = []
+    doc.descendants((node: any, pos: number) => {
+      if (node.isText) {
+        for (let i = 0; i < node.text.length; i++) {
+          arr.push(pos + i)
+        }
+      }
+    })
+    return arr
+  }
+
+  const createSuggestionPlugin = useCallback(() => {
+    const buildDecorations = (doc: any) => {
+      const decos: any[] = []
+      const charPositions = buildCharPositions(doc)
+      const colorClass = (t: Suggestion["type"]) =>
+        t === "spell"
+          ? "text-red-600 underline decoration-red-600"
+          : t === "grammar"
+            ? "text-blue-600 underline decoration-blue-600"
+            : "text-purple-600 underline decoration-purple-600"
+
+      suggestionsRef.current.forEach(sg => {
+        const startIndex = sg.offset
+        const endIndex = sg.offset + sg.length - 1
+        const from = charPositions[startIndex]
+        const to = charPositions[endIndex] + 1 // make inclusive
+        if (from && to) {
+          decos.push(
+            Decoration.inline(from, to, { class: colorClass(sg.type) })
+          )
+        }
+      })
+
+      return DecorationSet.create(doc, decos)
+    }
+
+    return new Plugin({
+      key: decorationKey,
+      state: {
+        init: (_: any, { doc }: any) => buildDecorations(doc),
+        apply: (tr: any, old: any) => {
+          if (tr.docChanged || tr.getMeta(decorationKey)) {
+            return buildDecorations(tr.doc)
+          }
+          return old
+        }
+      },
+      props: {
+        decorations: state => decorationKey.getState(state)
+      }
+    })
+  }, [])
+
+  const suggestionDecorationExt = useMemo(() => {
+    return Extension.create({
+      name: "suggestionDecoration",
+      addProseMirrorPlugins() {
+        return [createSuggestionPlugin()]
+      }
+    })
+  }, [createSuggestionPlugin])
+
   // Instantiate TipTap editor. We memoise it so it isn't recreated on every render.
   const editor = useEditor({
     extensions: [
@@ -98,7 +182,8 @@ export default function DocumentEditor({
           target: "_blank"
         },
         openOnClick: false
-      })
+      }),
+      suggestionDecorationExt
     ],
     content: initialHtml,
     onUpdate: ({ editor }: { editor: TipTapEditor }) => {
@@ -157,7 +242,16 @@ export default function DocumentEditor({
   const runChecks = async (text: string) => {
     const res = await analyse(text)
     const map = new Map(res.suggestions.map(s => [s.id, s]))
-    setSuggestions(Array.from(map.values()))
+    const unique = Array.from(map.values())
+    setSuggestions(unique)
+    suggestionsRef.current = unique
+
+    // trigger decoration rebuild
+    if (editor) {
+      const tr = editor.state.tr
+      tr.setMeta(decorationKey, true)
+      editor.view.dispatch(tr)
+    }
     setReadability(res.score)
     setStats({
       words: res.words,
@@ -280,6 +374,17 @@ export default function DocumentEditor({
     window.addEventListener("keydown", handleKeydown)
     return () => window.removeEventListener("keydown", handleKeydown)
   }, [handleKeydown])
+
+  // -------------------------- Apply Suggestion --------------------------
+  const applySuggestion = (sg: Suggestion, replacement: string) => {
+    if (!editor) return
+    const charPositions = buildCharPositions(editor.state.doc)
+    const from = charPositions[sg.offset]
+    const to = charPositions[sg.offset + sg.length - 1] + 1
+    if (!from || !to) return
+
+    editor.chain().focus().insertContentAt({ from, to }, replacement).run()
+  }
 
   return (
     <div className="space-y-4">
@@ -413,6 +518,20 @@ export default function DocumentEditor({
                   </span>
                   : {sg.message}
                 </p>
+                {sg.replacements.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {sg.replacements.slice(0, 3).map(rep => (
+                      <Button
+                        key={rep}
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => applySuggestion(sg, rep)}
+                      >
+                        {rep}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
           )}
