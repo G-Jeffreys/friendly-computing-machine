@@ -254,6 +254,36 @@ export default function DocumentEditor({
     }
   }, [])
 
+  /* -------------------------- Keyboard Short-cuts -------------------------- */
+  // Ctrl/Cmd + S → save;  Ctrl/Cmd + Enter → run analysis immediately
+  const handleKeydown = useCallback(
+    (e: KeyboardEvent) => {
+      const isMac = /Mac|iPhone|iPod|iPad/i.test(navigator.platform)
+      const ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey
+
+      if (!ctrlOrCmd) return
+
+      // Prevent the browser's default Save-page dialog.
+      if (e.key === "s" || e.key === "S") {
+        e.preventDefault()
+        handleSave()
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault()
+        // Run checks immediately, bypassing debounce.
+        runChecks(textareaRef.current?.value || "")
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [handleSave]
+  )
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeydown)
+    return () => window.removeEventListener("keydown", handleKeydown)
+  }, [handleKeydown])
+
   return (
     <div className="space-y-4">
       <div>
@@ -277,6 +307,7 @@ export default function DocumentEditor({
           <div
             ref={highlightRef}
             className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words p-4 text-base"
+            aria-hidden="true"
             dangerouslySetInnerHTML={{ __html: highlightedHtml }}
           />
 
@@ -286,12 +317,17 @@ export default function DocumentEditor({
             onChange={handleContentChange}
             ref={textareaRef}
             className="absolute inset-0 size-full resize-none rounded border bg-transparent p-4 text-transparent caret-black outline-none selection:bg-blue-200"
+            role="textbox"
+            aria-label="Document content editor"
             style={{ WebkitTextFillColor: "transparent" }}
           />
         </div>
 
         {/* Suggestions */}
-        <aside className="max-h-[60vh] w-60 space-y-3 overflow-auto rounded border p-3">
+        <aside
+          className="max-h-[60vh] w-60 space-y-3 overflow-auto rounded border p-3"
+          aria-label="Suggestions"
+        >
           <h2 className="mb-2 font-semibold">Suggestions</h2>
           {suggestions.length === 0 ? (
             <p className="text-muted-foreground text-sm">No issues found</p>
