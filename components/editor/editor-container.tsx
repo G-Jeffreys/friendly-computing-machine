@@ -1,6 +1,5 @@
 "use client"
 
-import { SelectDocument } from "@/db/schema/documents-schema"
 import {
   useState,
   useTransition,
@@ -9,45 +8,48 @@ import {
   useCallback,
   useMemo
 } from "react"
-import { Button } from "@/components/ui/button"
-import { useToast } from "@/hooks/use-toast"
-import Link from "next/link"
-import { Suggestion } from "@/lib/hooks/use-spell-grammar"
-import { useAnalyser } from "@/lib/hooks/use-analyser"
 import { useRouter } from "next/navigation"
-import { debounce } from "@/lib/utils/debounce"
-import { DEMO_WORD_LIMIT, DEMO_TIME_LIMIT_MS } from "@/lib/demo-constants"
-import OverlayModal from "@/components/ui/overlay-modal"
-import { useAutosave } from "@/lib/hooks/use-autosave"
+import Link from "next/link"
 import { EditorContent, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import UnderlineExt from "@tiptap/extension-underline"
 import LinkExt from "@tiptap/extension-link"
-import {
-  Bold as BoldIcon,
-  Italic as ItalicIcon,
-  Underline as UnderlineIcon,
-  Strikethrough as StrikeIcon,
-  List as ListIcon,
-  ListOrdered as ListOrderedIcon,
-  Undo as UndoIcon,
-  Redo as RedoIcon,
-  Link as LinkIcon
-} from "lucide-react"
-import { Editor as TipTapEditor, Extension } from "@tiptap/core"
+import { Extension } from "@tiptap/core"
 import { Plugin, PluginKey } from "@tiptap/pm/state"
 import { Decoration, DecorationSet } from "@tiptap/pm/view"
 
-interface DocumentEditorProps {
+import type { Editor as TipTapEditor } from "@tiptap/core"
+import type { SelectDocument } from "@/db/schema/documents-schema"
+import { Suggestion } from "@/lib/hooks/use-spell-grammar"
+
+import { Button } from "@/components/ui/button"
+import OverlayModal from "@/components/ui/overlay-modal"
+import { useToast } from "@/hooks/use-toast"
+import { useAnalyser } from "@/lib/hooks/use-analyser"
+import { debounce } from "@/lib/utils/debounce"
+import { useAutosave } from "@/lib/hooks/use-autosave"
+import { DEMO_WORD_LIMIT, DEMO_TIME_LIMIT_MS } from "@/lib/demo-constants"
+
+// Extracted UI components
+import EditorToolbar from "./editor-toolbar"
+import SuggestionSidebar from "./suggestion-sidebar"
+
+interface EditorContainerProps {
   initialDocument: SelectDocument
   /** When true the component runs in anonymous demo mode and enforces word/time limits. */
   demoMode?: boolean
 }
 
-export default function DocumentEditor({
+/**
+ * EditorContainer – the main rich-text editor experience. This component was
+ * previously the monolithic `DocumentEditor`. It now orchestrates smaller
+ * presentational components such as `EditorToolbar` and `SuggestionSidebar`.
+ */
+export default function EditorContainer({
   initialDocument,
   demoMode = false
-}: DocumentEditorProps) {
+}: EditorContainerProps) {
+  /* ------------------------------ State hooks ------------------------------ */
   const [title, setTitle] = useState(initialDocument.title)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [readability, setReadability] = useState<number | null>(null)
@@ -58,36 +60,35 @@ export default function DocumentEditor({
     readingTimeMinutes: number
   } | null>(null)
   const [isPending, startTransition] = useTransition()
+
   const { toast } = useToast()
   const router = useRouter()
   const { analyse } = useAnalyser()
 
-  /* ---------------------------------------------------------------------- */
-  /* Demo-mode state: enforce 100-word / 10-second blocker for anon users   */
-  /* ---------------------------------------------------------------------- */
+  /* ------------------------------ Demo blocker ----------------------------- */
   const [demoBlocked, setDemoBlocked] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Keep track of the latest updatedAt value returned by the server so both
-  // manual saves and autosave share a single optimistic-concurrency token.
+  /* --- optimistic-concurrency token shared between manual & auto-save ----- */
   const [updatedAtToken, setUpdatedAtToken] = useState(
     typeof initialDocument.updatedAt === "string"
       ? initialDocument.updatedAt
       : new Date(initialDocument.updatedAt).toISOString()
   )
 
-  // Convert legacy plain-text documents to simple <p> blocks so TipTap can load them.
+  /* ----------------------------- TipTap content ---------------------------- */
+  // Convert legacy plain-text documents to simple <p> so TipTap can load them.
   const initialHtml = initialDocument.content.includes("<")
     ? initialDocument.content
-    : `<p>${initialDocument.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`
+    : `<p>${initialDocument.content
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")}</p>`
 
-  // content = HTML string managed by TipTap
   const [content, setContent] = useState(initialHtml)
   const [plainText, setPlainText] = useState<string>("")
 
-  /* ---------------------------------------------------------------------- */
-  /* Autosave hook – saves every 30 s when content/title change             */
-  /* ---------------------------------------------------------------------- */
+  /* ---------------------------- Autosave logic ---------------------------- */
   const { secondsSinceLastSave, markSaved } = useAutosave({
     title,
     content,
@@ -96,12 +97,8 @@ export default function DocumentEditor({
     updatedAt: updatedAtToken
   })
 
-  // --------------------------------------------------------------------
-  // Inline suggestion highlight – TipTap Decoration plugin
-  // --------------------------------------------------------------------
-
+  /* ------------------ Suggestion highlight Decoration plugin -------------- */
   const suggestionsRef = useRef<Suggestion[]>([])
-
   const decorationKey = useMemo(
     () => new PluginKey("spellGrammarHighlight"),
     []
@@ -134,7 +131,7 @@ export default function DocumentEditor({
         const startIndex = sg.offset
         const endIndex = sg.offset + sg.length - 1
         const from = charPositions[startIndex]
-        const to = charPositions[endIndex] + 1 // make inclusive
+        const to = charPositions[endIndex] + 1 // inclusive
         if (from && to) {
           decos.push(
             Decoration.inline(from, to, { class: colorClass(sg.type) })
@@ -171,7 +168,7 @@ export default function DocumentEditor({
     })
   }, [createSuggestionPlugin])
 
-  // Instantiate TipTap editor. We memoise it so it isn't recreated on every render.
+  /* ------------------------- TipTap Editor instance ------------------------ */
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -190,20 +187,13 @@ export default function DocumentEditor({
       const html = editor.getHTML()
       const text = editor.getText()
 
-      // ProseMirror represents each paragraph as a separate node without
-      // storing the newline character itself. By **removing** (not replacing)
-      // newline characters before sending text to LanguageTool we ensure the
-      // offsets it returns line up 1-to-1 with the character positions that
-      // `buildCharPositions` derives from the TipTap document.
+      // ProseMirror stores paragraphs as nodes without the newline character
       const cleanedText = text.replace(/\n/g, "")
 
-      // keep plain text state (original, still with newlines) for UI snippets
       setPlainText(text)
-
-      // 1. Keep React state in sync so autosave uses latest HTML.
       setContent(html)
 
-      // 2. Demo limiter – replicate logic we used with textarea.
+      /* -------- Demo mode word / time limiter -------- */
       if (demoMode) {
         const wordCount = cleanedText.trim().split(/\s+/).filter(Boolean).length
 
@@ -223,29 +213,21 @@ export default function DocumentEditor({
         }
       }
 
-      // 3. Trigger analysis (debounced).
+      /* -------- Trigger expensive analysis (debounced) -------- */
       debouncedRunChecks(cleanedText)
     }
   })
 
-  // Debounced wrapper around the expensive analysis routine. Created once per
-  // component instance so the underlying timer survives re-renders.
+  /* ------------------- Debounced analysis helper ------------------ */
   const debouncedRunChecks = useRef(
     debounce((txt: string) => {
       // eslint-disable-next-line no-console
-      console.log("[DocumentEditor] debouncedRunChecks executing")
+      console.log("[EditorContainer] debouncedRunChecks executing")
       runChecks(txt)
     }, 750)
   ).current
 
-  const escapeHtml = (str: string) =>
-    str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#039;")
-
+  /* ------------------------------ Analysis ------------------------------ */
   const runChecks = async (input: string) => {
     const res = await analyse(input)
     const map = new Map(res.suggestions.map(s => [s.id, s]))
@@ -253,12 +235,13 @@ export default function DocumentEditor({
     setSuggestions(unique)
     suggestionsRef.current = unique
 
-    // trigger decoration rebuild
+    // rebuild decorations
     if (editor) {
       const tr = editor.state.tr
       tr.setMeta(decorationKey, true)
       editor.view.dispatch(tr)
     }
+
     setReadability(res.score)
     setStats({
       words: res.words,
@@ -268,6 +251,7 @@ export default function DocumentEditor({
     })
   }
 
+  /* ------------------------------ Handlers ------------------------------ */
   const handleSave = () => {
     if (demoMode) {
       setDemoBlocked(true)
@@ -291,7 +275,7 @@ export default function DocumentEditor({
             setUpdatedAtToken(conflict.updatedAt)
             markSaved(conflict.updatedAt)
           }
-          console.warn("[DocumentEditor] save conflict – ignoring pop-up")
+          console.warn("[EditorContainer] save conflict – ignoring pop-up")
         } else if (!res.ok) {
           throw new Error("Failed to save")
         } else {
@@ -299,7 +283,6 @@ export default function DocumentEditor({
           markSaved(data.updatedAt)
           setUpdatedAtToken(data.updatedAt)
           toast({ title: "Document saved" })
-          // Refresh layouts (sidebar) so any title change is reflected instantly.
           router.refresh()
         }
       } catch (error) {
@@ -333,8 +316,6 @@ export default function DocumentEditor({
         }
         toast({ title: "Document deleted" })
         router.push("/documents")
-        // Force a revalidation of server components on the client to make
-        // sure the sidebar and list reflect the removed document.
         router.refresh()
       } catch (error) {
         console.error(error)
@@ -343,18 +324,6 @@ export default function DocumentEditor({
     })
   }
 
-  // Run checks once after component mounts to analyze saved document
-  useEffect(() => {
-    if (editor) {
-      const initialText = editor.getText()
-      setPlainText(initialText)
-      runChecks(initialText.replace(/\n/g, ""))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor])
-
-  /* -------------------------- Keyboard Short-cuts -------------------------- */
-  // Ctrl/Cmd + S → save;  Ctrl/Cmd + Enter → run analysis immediately
   const handleKeydown = useCallback(
     (e: KeyboardEvent) => {
       const isMac = /Mac|iPhone|iPod|iPad/i.test(navigator.platform)
@@ -362,7 +331,6 @@ export default function DocumentEditor({
 
       if (!ctrlOrCmd) return
 
-      // Prevent the browser's default Save-page dialog.
       if (e.key === "s" || e.key === "S") {
         e.preventDefault()
         handleSave()
@@ -370,7 +338,6 @@ export default function DocumentEditor({
 
       if (e.key === "Enter") {
         e.preventDefault()
-        // Run checks immediately on current plain text.
         const cleanNow = (editor?.getText() || "").replace(/\n/g, "")
         runChecks(cleanNow)
       }
@@ -384,7 +351,7 @@ export default function DocumentEditor({
     return () => window.removeEventListener("keydown", handleKeydown)
   }, [handleKeydown])
 
-  // -------------------------- Apply Suggestion --------------------------
+  /* ------------------------ Apply suggestion ------------------------ */
   const applySuggestion = (sg: Suggestion, replacement: string) => {
     if (!editor) return
     const charPositions = buildCharPositions(editor.state.doc)
@@ -395,6 +362,17 @@ export default function DocumentEditor({
     editor.chain().focus().insertContentAt({ from, to }, replacement).run()
   }
 
+  /* --------------------------- Side-effects --------------------------- */
+  useEffect(() => {
+    if (editor) {
+      const initialText = editor.getText()
+      setPlainText(initialText)
+      runChecks(initialText.replace(/\n/g, ""))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor])
+
+  /* ------------------------------ Render ------------------------------ */
   return (
     <div className="space-y-4">
       {!demoMode && (
@@ -407,6 +385,8 @@ export default function DocumentEditor({
           </Link>
         </div>
       )}
+
+      {/* Title input */}
       <input
         value={title}
         onChange={e => setTitle(e.target.value)}
@@ -414,88 +394,12 @@ export default function DocumentEditor({
       />
 
       <div className="flex gap-6">
-        {/* Editor with highlight overlay */}
+        {/* Rich text editor */}
         <div className="relative flex-1">
-          {/* Toolbar – fixed inside the editor container */}
-          <div className="bg-background sticky top-0 z-10 flex gap-1 border-b p-2">
-            <Button
-              size="icon"
-              variant={editor?.isActive("bold") ? "default" : "secondary"}
-              onClick={() => editor?.chain().focus().toggleBold().run()}
-            >
-              <BoldIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant={editor?.isActive("italic") ? "default" : "secondary"}
-              onClick={() => editor?.chain().focus().toggleItalic().run()}
-            >
-              <ItalicIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant={editor?.isActive("underline") ? "default" : "secondary"}
-              onClick={() => editor?.chain().focus().toggleUnderline().run()}
-            >
-              <UnderlineIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant={editor?.isActive("strike") ? "default" : "secondary"}
-              onClick={() => editor?.chain().focus().toggleStrike().run()}
-            >
-              <StrikeIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant={editor?.isActive("bulletList") ? "default" : "secondary"}
-              onClick={() => editor?.chain().focus().toggleBulletList().run()}
-            >
-              <ListIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant={
-                editor?.isActive("orderedList") ? "default" : "secondary"
-              }
-              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-            >
-              <ListOrderedIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={() => {
-                const url = prompt("Enter URL")
-                if (url) {
-                  editor
-                    ?.chain()
-                    .focus()
-                    .extendMarkRange("link")
-                    .setLink({ href: url })
-                    .run()
-                }
-              }}
-            >
-              <LinkIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={() => editor?.chain().focus().undo().run()}
-            >
-              <UndoIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={() => editor?.chain().focus().redo().run()}
-            >
-              <RedoIcon className="size-4" />
-            </Button>
-          </div>
+          {/* Toolbar */}
+          <EditorToolbar editor={editor} />
 
-          {/* TipTap editor content */}
+          {/* Editable content */}
           <EditorContent
             editor={editor}
             className="prose dark:prose-invert max-h-[60vh] min-h-[50vh] overflow-auto p-4 focus:outline-none"
@@ -503,67 +407,16 @@ export default function DocumentEditor({
         </div>
 
         {/* Suggestions */}
-        <aside
-          className="max-h-[60vh] w-60 space-y-3 overflow-auto rounded border p-3"
-          aria-label="Suggestions"
-        >
-          <h2 className="mb-2 font-semibold">Suggestions</h2>
-          {suggestions.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No issues found</p>
-          ) : (
-            suggestions.map(sg => (
-              <div key={sg.id} className="rounded border p-2 text-sm">
-                <p>
-                  <span
-                    className={
-                      sg.type === "spell"
-                        ? "text-red-600"
-                        : sg.type === "grammar"
-                          ? "text-blue-600"
-                          : "text-purple-600"
-                    }
-                  >
-                    {plainText.substring(sg.offset, sg.offset + sg.length)}
-                  </span>
-                  : {sg.message}
-                </p>
-                {sg.replacements.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {sg.replacements.slice(0, 3).map(rep => (
-                      <Button
-                        key={rep}
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => applySuggestion(sg, rep)}
-                      >
-                        {rep}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-          <div className="text-muted-foreground mt-4 space-y-1 text-xs">
-            <div>
-              Readability score:{" "}
-              {readability !== null ? readability.toFixed(1) : "-"}
-            </div>
-            {stats && (
-              <>
-                <div>Words: {stats.words}</div>
-                <div>Sentences: {stats.sentences}</div>
-                <div>Avg. word length: {stats.avgWordLength.toFixed(2)}</div>
-                <div>
-                  Estimated reading time: {stats.readingTimeMinutes.toFixed(1)}{" "}
-                  min
-                </div>
-              </>
-            )}
-          </div>
-        </aside>
+        <SuggestionSidebar
+          suggestions={suggestions}
+          plainText={plainText}
+          readability={readability}
+          stats={stats}
+          onApplySuggestion={applySuggestion}
+        />
       </div>
 
+      {/* Save / Delete + Autosave timer */}
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="flex gap-2">
           <Button onClick={handleSave} disabled={isPending}>
@@ -578,7 +431,6 @@ export default function DocumentEditor({
           </Button>
         </div>
 
-        {/* Autosave status */}
         {!demoMode && (
           <p className="text-muted-foreground text-sm sm:ml-4">
             {secondsSinceLastSave} seconds since last autosave
@@ -586,7 +438,7 @@ export default function DocumentEditor({
         )}
       </div>
 
-      {/* Demo overlay – blocks interaction after word/time limit */}
+      {/* Demo overlay */}
       {demoMode && <OverlayModal open={demoBlocked} />}
     </div>
   )
