@@ -18,7 +18,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    let { title, content, updatedAt: clientUpdatedAt } = body
+    let { title, content, updatedAt: clientUpdatedAt, maxMode } = body
 
     // Sanitise incoming HTML to enforce allow-list on the server as well.
     if (typeof content === "string") {
@@ -60,7 +60,8 @@ export async function PATCH(
 
     const res = await updateDocumentAction(userId, documentId, {
       title,
-      content
+      content,
+      ...(typeof maxMode === "boolean" ? { maxMode } : {})
     })
 
     if (!res.isSuccess) {

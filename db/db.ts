@@ -4,7 +4,7 @@ Initializes the database connection and schema for the app.
 </ai_context>
 */
 
-import { profilesTable, documentsTable } from "@/db/schema"
+import { profilesTable, documentsTable, userDictionaryTable } from "@/db/schema"
 import { config } from "dotenv"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
@@ -13,7 +13,8 @@ config({ path: ".env.local" })
 
 const schema = {
   profiles: profilesTable,
-  documents: documentsTable
+  documents: documentsTable,
+  userDictionary: userDictionaryTable
 }
 
 // Prefer the dedicated Supabase connection string when it is present. This makes it

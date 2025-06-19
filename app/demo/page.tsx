@@ -10,6 +10,7 @@ export default async function DemoPage() {
     userId: "demo",
     title: "Demo Document",
     content: "",
+    maxMode: false,
     createdAt: new Date(),
     updatedAt: new Date()
   }

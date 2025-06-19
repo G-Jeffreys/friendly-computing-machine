@@ -18,6 +18,10 @@ import type { Editor as TipTapEditor } from "@tiptap/core"
 interface EditorToolbarProps {
   /** The active TipTap editor instance. */
   editor: TipTapEditor | null
+  /** When true LLM-enhanced "Max Mode" is enabled for this document */
+  maxMode?: boolean
+  /** Callback to toggle Max Mode */
+  onToggleMaxMode?: () => void
 }
 
 /**
@@ -27,7 +31,11 @@ interface EditorToolbarProps {
  * independently. All controls proxy their actions through the provided
  * `editor` instance.
  */
-function EditorToolbar({ editor }: EditorToolbarProps) {
+function EditorToolbar({
+  editor,
+  maxMode = false,
+  onToggleMaxMode
+}: EditorToolbarProps) {
   console.log(
     "[EditorToolbar] render – editor instance present:",
     Boolean(editor)

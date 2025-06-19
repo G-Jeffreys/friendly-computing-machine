@@ -51,6 +51,11 @@ export default function EditorContainer({
 }: EditorContainerProps) {
   /* ------------------------------ State hooks ------------------------------ */
   const [title, setTitle] = useState(initialDocument.title)
+  const [maxMode, setMaxMode] = useState<boolean>(
+    // Fallback to false when property missing for legacy docs
+    // @ts-ignore – initialDocument may not yet include maxMode in older types
+    initialDocument.maxMode ?? false
+  )
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [readability, setReadability] = useState<number | null>(null)
   const [stats, setStats] = useState<{
@@ -92,6 +97,7 @@ export default function EditorContainer({
   const { secondsSinceLastSave, markSaved } = useAutosave({
     title,
     content,
+    maxMode,
     documentId: initialDocument.id,
     demoMode,
     updatedAt: updatedAtToken
@@ -230,7 +236,17 @@ export default function EditorContainer({
   /* ------------------------------ Analysis ------------------------------ */
   const runChecks = async (input: string) => {
     const res = await analyse(input)
-    const map = new Map(res.suggestions.map(s => [s.id, s]))
+
+    // Filter spell suggestions using dictionary.
+    const filteredSuggestions = res.suggestions.filter(sg => {
+      if (sg.type !== "spell") return true
+      const word = input
+        .substring(sg.offset, sg.offset + sg.length)
+        .toLowerCase()
+      return !dictionaryRef.current.has(word)
+    })
+
+    const map = new Map(filteredSuggestions.map(s => [s.id, s]))
     const unique = Array.from(map.values())
     setSuggestions(unique)
     suggestionsRef.current = unique
@@ -266,6 +282,7 @@ export default function EditorContainer({
           body: JSON.stringify({
             title,
             content,
+            maxMode,
             updatedAt: updatedAtToken
           })
         })
@@ -362,6 +379,34 @@ export default function EditorContainer({
     editor.chain().focus().insertContentAt({ from, to }, replacement).run()
   }
 
+  /* ------------------- Dictionary integration ------------------- */
+  const handleAddToDictionary = async (word: string) => {
+    try {
+      const res = await fetch("/api/user-dictionary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ word, languageCode: "en" })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toast({
+          title: err.message || "Failed to add word",
+          variant: "destructive"
+        })
+        return
+      }
+      toast({ title: `"${word}" added to dictionary` })
+
+      dictionaryRef.current.add(word.toLowerCase())
+
+      // Re-run checks so the newly added word disappears from suggestions.
+      runChecks(plainText.replace(/\n/g, ""))
+    } catch (error) {
+      console.error("[EditorContainer] handleAddToDictionary", error)
+      toast({ title: "Server error", variant: "destructive" })
+    }
+  }
+
   /* --------------------------- Side-effects --------------------------- */
   useEffect(() => {
     if (editor) {
@@ -371,6 +416,28 @@ export default function EditorContainer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor])
+
+  /* ----------------------- User dictionary ----------------------- */
+  const dictionaryRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    // Fetch once on mount.
+    ;(async () => {
+      try {
+        const res = await fetch("/api/user-dictionary?lang=en")
+        if (res.ok) {
+          const json = await res.json()
+          if (Array.isArray(json.data)) {
+            const set = new Set<string>()
+            json.data.forEach((row: any) => set.add(row.word.toLowerCase()))
+            dictionaryRef.current = set
+          }
+        }
+      } catch (e) {
+        console.error("[EditorContainer] Failed to fetch dictionary", e)
+      }
+    })()
+  }, [])
 
   /* ------------------------------ Render ------------------------------ */
   return (
@@ -397,7 +464,11 @@ export default function EditorContainer({
         {/* Rich text editor */}
         <div className="relative flex-1">
           {/* Toolbar */}
-          <EditorToolbar editor={editor} />
+          <EditorToolbar
+            editor={editor}
+            maxMode={maxMode}
+            onToggleMaxMode={() => setMaxMode(prev => !prev)}
+          />
 
           {/* Editable content */}
           <EditorContent
@@ -413,6 +484,7 @@ export default function EditorContainer({
           readability={readability}
           stats={stats}
           onApplySuggestion={applySuggestion}
+          onAddToDictionary={handleAddToDictionary}
         />
       </div>
 

@@ -17,6 +17,8 @@ interface SuggestionSidebarProps {
   readability: number | null
   stats: Stats | null
   onApplySuggestion: (sg: Suggestion, replacement: string) => void
+  /** Optional handler for "Add to Dictionary" (only for spell suggestions) */
+  onAddToDictionary?: (word: string) => void
 }
 
 /**
@@ -28,7 +30,8 @@ function SuggestionSidebar({
   plainText,
   readability,
   stats,
-  onApplySuggestion
+  onApplySuggestion,
+  onAddToDictionary
 }: SuggestionSidebarProps) {
   console.log(
     "[SuggestionSidebar] render – total suggestions:",
@@ -74,6 +77,21 @@ function SuggestionSidebar({
                   </Button>
                 ))}
               </div>
+            )}
+
+            {sg.type === "spell" && onAddToDictionary && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-1 text-xs underline"
+                onClick={() =>
+                  onAddToDictionary(
+                    plainText.substring(sg.offset, sg.offset + sg.length)
+                  )
+                }
+              >
+                Add to Dictionary
+              </Button>
             )}
           </div>
         ))
