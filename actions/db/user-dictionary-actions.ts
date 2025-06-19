@@ -19,6 +19,25 @@ export async function addWordToDictionaryAction(
   try {
     // Normalise word to lowercase to ensure case-insensitive matches.
     const lower = data.word.toLowerCase()
+
+    // Attempt insert, but skip if exists.
+    // First quick check to avoid unnecessary error throw.
+    const exists = await db.query.userDictionary.findFirst({
+      where: and(
+        eq(userDictionaryTable.userId, data.userId),
+        eq(userDictionaryTable.languageCode, data.languageCode ?? "en"),
+        eq(userDictionaryTable.word, lower)
+      )
+    })
+
+    if (exists) {
+      return {
+        isSuccess: true,
+        message: "Word already in dictionary",
+        data: exists
+      }
+    }
+
     const [row] = await db
       .insert(userDictionaryTable)
       .values({ ...data, word: lower })

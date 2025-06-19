@@ -29,6 +29,7 @@ import { useAnalyser } from "@/lib/hooks/use-analyser"
 import { debounce } from "@/lib/utils/debounce"
 import { useAutosave } from "@/lib/hooks/use-autosave"
 import { DEMO_WORD_LIMIT, DEMO_TIME_LIMIT_MS } from "@/lib/demo-constants"
+import type { CitationEntry } from "@/actions/ai/citation-hunter-action"
 
 // Extracted UI components
 import EditorToolbar from "./editor-toolbar"
@@ -38,6 +39,14 @@ interface EditorContainerProps {
   initialDocument: SelectDocument
   /** When true the component runs in anonymous demo mode and enforces word/time limits. */
   demoMode?: boolean
+}
+
+// ----------------------------------------------
+// Types for new Definition Expander feature
+// ----------------------------------------------
+interface DefinitionEntry {
+  term: string
+  definition: string
 }
 
 /**
@@ -69,6 +78,10 @@ export default function EditorContainer({
   const [toneSuggestions, setToneSuggestions] = useState<
     { original: string; revised: string }[]
   >([])
+
+  /* ------------------- Citations ------------------- */
+  const [citations, setCitations] = useState<CitationEntry[]>([])
+  const [findingCitations, setFindingCitations] = useState(false)
 
   const { toast } = useToast()
   const router = useRouter()
@@ -239,18 +252,41 @@ export default function EditorContainer({
 
   /* ------------------------------ Analysis ------------------------------ */
   const runChecks = async (input: string) => {
-    const res = await analyse(input)
+    let res: any
+
+    if (maxMode) {
+      // When Max Mode is enabled we get stats via local worker *but* grammar suggestions via LLM.
+      const [statsRes, llmRes] = await Promise.all([
+        analyse(input),
+        fetch("/api/grammar-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: input })
+        }).then(r => r.json())
+      ])
+
+      res = {
+        ...statsRes,
+        suggestions: (Array.isArray(llmRes?.data)
+          ? llmRes.data
+          : []) as Suggestion[]
+      }
+    } else {
+      res = await analyse(input)
+    }
 
     // Filter spell suggestions using dictionary.
-    const filteredSuggestions = res.suggestions.filter(sg => {
-      if (sg.type !== "spell") return true
-      const word = input
-        .substring(sg.offset, sg.offset + sg.length)
-        .toLowerCase()
-      return !dictionaryRef.current.has(word)
-    })
+    const filteredSuggestions = (res.suggestions as Suggestion[]).filter(
+      (sg: Suggestion) => {
+        if (sg.type !== "spell") return true
+        const word = input
+          .substring(sg.offset, sg.offset + sg.length)
+          .toLowerCase()
+        return !dictionaryRef.current.has(word)
+      }
+    )
 
-    const map = new Map(filteredSuggestions.map(s => [s.id, s]))
+    const map = new Map(filteredSuggestions.map((s: Suggestion) => [s.id, s]))
     const unique = Array.from(map.values())
     setSuggestions(unique)
     suggestionsRef.current = unique
@@ -478,6 +514,104 @@ export default function EditorContainer({
     editor.chain().focus().insertContentAt({ from, to }, revised).run()
   }
 
+  /* -------------------- Definitions -------------------- */
+  const [definitions, setDefinitions] = useState<DefinitionEntry[]>([])
+  const [defineAnchor, setDefineAnchor] = useState<{
+    x: number
+    y: number
+    text: string
+  } | null>(null)
+
+  /* ------------------ Definition handler ------------------ */
+  const handleDefine = async () => {
+    if (!defineAnchor) return
+    const term = defineAnchor.text.trim()
+    console.log("[EditorContainer] handleDefine term", term)
+    setActiveTab("definitions")
+    try {
+      const res = await fetch("/api/definitions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ term })
+      })
+      const json = await res.json()
+      if (json.data) {
+        setDefinitions(prev => [...prev, json.data])
+        toast({ title: `Definition added for "${term}"` })
+      } else {
+        toast({
+          title: json.message || "Failed to fetch definition",
+          variant: "destructive"
+        })
+      }
+    } catch (e) {
+      console.error("[EditorContainer] handleDefine error", e)
+      toast({ title: "Server error", variant: "destructive" })
+    } finally {
+      setDefineAnchor(null)
+    }
+  }
+
+  /* ---------------- Selection listener ----------------- */
+  useEffect(() => {
+    const onMouseUp = () => {
+      if (!editor) return
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0) {
+        setDefineAnchor(null)
+        return
+      }
+      const text = sel.toString().trim()
+      if (!text) {
+        setDefineAnchor(null)
+        return
+      }
+      const range = sel.getRangeAt(0)
+      // Ensure selection is within the editor DOM
+      if (!editor.view.dom.contains(range.commonAncestorContainer)) {
+        setDefineAnchor(null)
+        return
+      }
+      const rect = range.getBoundingClientRect()
+      setDefineAnchor({
+        x: rect.right + window.scrollX,
+        y: rect.bottom + window.scrollY,
+        text
+      })
+    }
+    document.addEventListener("mouseup", onMouseUp)
+    return () => {
+      document.removeEventListener("mouseup", onMouseUp)
+    }
+  }, [editor])
+
+  /* ------------------ Find citations ------------------ */
+  const handleFindCitations = async () => {
+    if (findingCitations) return
+    setFindingCitations(true)
+    setActiveTab("citations")
+    try {
+      const res = await fetch(
+        `/api/documents/${initialDocument.id}/citations`,
+        { method: "POST" }
+      )
+      const json = await res.json()
+      if (json.isSuccess) {
+        setCitations(json.data)
+      } else {
+        toast({
+          title: json.message || "Citation hunter failed",
+          variant: "destructive"
+        })
+      }
+    } catch (e) {
+      console.error("[EditorContainer] handleFindCitations", e)
+      toast({ title: "Server error", variant: "destructive" })
+    } finally {
+      setFindingCitations(false)
+    }
+  }
+
   /* ------------------------------ Render ------------------------------ */
   return (
     <div className="space-y-4">
@@ -506,9 +640,22 @@ export default function EditorContainer({
           <EditorToolbar
             editor={editor}
             maxMode={maxMode}
-            onToggleMaxMode={() => setMaxMode(prev => !prev)}
+            onToggleMaxMode={checked => setMaxMode(checked)}
             onToneHarmonize={handleToneHarmonize}
+            onFindCitations={handleFindCitations}
+            findingCitations={findingCitations}
           />
+
+          {/* Floating "Define" button */}
+          {defineAnchor && (
+            <button
+              onClick={handleDefine}
+              className="absolute z-20 rounded bg-blue-600 px-2 py-1 text-xs text-white shadow"
+              style={{ top: defineAnchor.y + 8, left: defineAnchor.x + 8 }}
+            >
+              Define
+            </button>
+          )}
 
           {/* Editable content */}
           <EditorContent
@@ -529,6 +676,8 @@ export default function EditorContainer({
           onAddToDictionary={handleAddToDictionary}
           toneSuggestions={toneSuggestions}
           onAcceptToneSuggestion={applyToneSuggestion}
+          definitions={definitions}
+          citations={citations}
         />
       </div>
 
