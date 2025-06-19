@@ -4,6 +4,8 @@
   be imported from server actions and API routes.
 */
 
+import { auth } from "@clerk/nextjs/server"
+
 export interface CallLLMOptions {
   prompt?: string
   provider?: string
@@ -25,12 +27,68 @@ function key(opts: CallLLMOptions) {
   )
 }
 
+// ----------------------- Prompt scrub helper -----------------------
+function scrubPrompt(input?: string): string | undefined {
+  if (!input) return input
+  // Remove common prompt-injection attempts such as "IGNORE ALL PREVIOUS..."
+  const patterns = [/ignore\s+all\s+previous/gi, /forget\s+everything/gi]
+  let out = input
+  patterns.forEach(rx => {
+    out = out.replace(rx, "")
+  })
+  return out.trim()
+}
+
+// ----------------------- Token estimate helper ---------------------
+function estimateTokens(text: string | undefined): number {
+  if (!text) return 0
+  const words = text.split(/\s+/).length
+  return Math.round(words / 0.75)
+}
+
+// ----------------------- Usage meter helper ------------------------
+async function recordUsage(tokensIn: number, tokensOut: number): Promise<void> {
+  try {
+    const url = process.env.USAGE_METER_URL
+    const apiKey = process.env.USAGE_METER_API_KEY
+    if (!url || !apiKey) return
+
+    const { userId } = await auth()
+    if (!userId) return // anonymous in demo mode – skip
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({ userId, tokensIn, tokensOut })
+    })
+
+    if (!res.ok) {
+      const msg = await res.text()
+      console.warn("[llm-server] usage-meter rejected", msg)
+      if (res.status === 429) {
+        throw new Error("Daily token limit exceeded")
+      }
+    }
+  } catch (err) {
+    console.error("[llm-server] usage-meter error", err)
+  }
+}
+
 export async function callLLM<T = any>(opts: CallLLMOptions): Promise<T> {
-  const k = key(opts)
+  const scrubbedPrompt = scrubPrompt(opts.prompt)
+  const k = key({ ...opts, prompt: scrubbedPrompt })
+  const tokensInEstimate = estimateTokens(scrubbedPrompt)
+
   if (memoryCache.has(k)) return memoryCache.get(k)
 
   let data: any
   const provider = opts.provider ?? "openai"
+
+  // Preflight usage-meter check
+  await recordUsage(tokensInEstimate, 0)
 
   switch (provider) {
     case "languageTool": {
@@ -86,6 +144,13 @@ export async function callLLM<T = any>(opts: CallLLMOptions): Promise<T> {
       break
     }
   }
+
+  const tokensOutEstimate = estimateTokens(
+    typeof data === "string" ? data : JSON.stringify(data)
+  )
+
+  await recordUsage(tokensInEstimate, tokensOutEstimate)
+
   memoryCache.set(k, data)
   return data as T
 }

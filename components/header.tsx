@@ -21,7 +21,10 @@ import { ThemeSwitcher } from "./utilities/theme-switcher"
 
 const navLinks: { href: string; label: string }[] = []
 
-const signedInLinks = [{ href: "/documents", label: "Documents" }]
+const signedInLinks = [
+  { href: "/documents", label: "Documents" },
+  { href: "/dictionary", label: "Dictionary" }
+]
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)

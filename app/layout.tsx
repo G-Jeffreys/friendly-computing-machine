@@ -15,6 +15,7 @@ import { PostHogPageview } from "@/components/utilities/posthog/posthog-pageview
 import { PostHogUserIdentify } from "@/components/utilities/posthog/posthog-user-identity"
 import { Providers } from "@/components/utilities/providers"
 import { TailwindIndicator } from "@/components/utilities/tailwind-indicator"
+import LegalDisclaimerBanner from "@/components/utilities/legal-disclaimer-banner"
 import { cn } from "@/lib/utils"
 import { ClerkProvider } from "@clerk/nextjs"
 import { auth } from "@clerk/nextjs/server"
@@ -62,6 +63,9 @@ export default async function RootLayout({
           >
             <PostHogUserIdentify />
             <PostHogPageview />
+
+            {/* Legal disclaimer banner visible until dismissed */}
+            <LegalDisclaimerBanner />
 
             {children}
 

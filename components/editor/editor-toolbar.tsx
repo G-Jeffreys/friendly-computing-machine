@@ -29,6 +29,10 @@ interface EditorToolbarProps {
   onFindCitations?: () => void
   /** When true Cite button shows spinner/disabled */
   findingCitations?: boolean
+  /** Callback to create slide deck */
+  onCreateSlideDeck?: () => void
+  /** When true the Slide button shows spinner/disabled */
+  creatingSlideDeck?: boolean
 }
 
 /**
@@ -44,7 +48,9 @@ function EditorToolbar({
   onToggleMaxMode,
   onToneHarmonize,
   onFindCitations,
-  findingCitations = false
+  findingCitations = false,
+  onCreateSlideDeck,
+  creatingSlideDeck = false
 }: EditorToolbarProps) {
   console.log(
     "[EditorToolbar] render – editor instance present:",
@@ -166,6 +172,17 @@ function EditorToolbar({
           disabled={findingCitations}
         >
           {findingCitations ? "…" : "Cite"}
+        </Button>
+      )}
+      {typeof onCreateSlideDeck === "function" && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onCreateSlideDeck}
+          title="Create Slide Deck"
+          disabled={creatingSlideDeck}
+        >
+          {creatingSlideDeck ? "…" : "Slide"}
         </Button>
       )}
     </div>

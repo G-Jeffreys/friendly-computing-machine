@@ -34,6 +34,15 @@ import type { CitationEntry } from "@/actions/ai/citation-hunter-action"
 // Extracted UI components
 import EditorToolbar from "./editor-toolbar"
 import AiSidebar from "./ai-sidebar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
+import posthog from "posthog-js"
 
 interface EditorContainerProps {
   initialDocument: SelectDocument
@@ -612,6 +621,54 @@ export default function EditorContainer({
     }
   }
 
+  /* ------------------ Slide Decker ------------------ */
+  const [slidePoints, setSlidePoints] = useState<{ text: string }[]>([])
+  const [creatingSlide, setCreatingSlide] = useState(false)
+  const [slideModalOpen, setSlideModalOpen] = useState(false)
+
+  const handleCreateSlideDeck = async () => {
+    if (!editor || creatingSlide) return
+    const minutesStr = prompt("Talk length in minutes", "30")
+    if (!minutesStr) return
+    const minutes = parseInt(minutesStr, 10)
+    if (isNaN(minutes) || minutes <= 0) {
+      toast({ title: "Invalid minutes", variant: "destructive" })
+      return
+    }
+    setCreatingSlide(true)
+    try {
+      const res = await fetch(
+        `/api/documents/${initialDocument.id}/slide-deck`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ minutes })
+        }
+      )
+      const json = await res.json()
+      if (json.isSuccess) {
+        setSlidePoints(json.data)
+        setSlideModalOpen(true)
+        if (typeof window !== "undefined" && posthog?.capture) {
+          posthog.capture("slide_deck.created", {
+            minutes,
+            points: json.data.length
+          })
+        }
+      } else {
+        toast({
+          title: json.message || "Slide deck failed",
+          variant: "destructive"
+        })
+      }
+    } catch (e) {
+      console.error("[EditorContainer] handleCreateSlideDeck", e)
+      toast({ title: "Server error", variant: "destructive" })
+    } finally {
+      setCreatingSlide(false)
+    }
+  }
+
   /* ------------------------------ Render ------------------------------ */
   return (
     <div className="space-y-4">
@@ -640,10 +697,17 @@ export default function EditorContainer({
           <EditorToolbar
             editor={editor}
             maxMode={maxMode}
-            onToggleMaxMode={checked => setMaxMode(checked)}
+            onToggleMaxMode={checked => {
+              setMaxMode(checked)
+              if (typeof window !== "undefined" && posthog?.capture) {
+                posthog.capture("max_mode.toggled", { enabled: checked })
+              }
+            }}
             onToneHarmonize={handleToneHarmonize}
             onFindCitations={handleFindCitations}
             findingCitations={findingCitations}
+            onCreateSlideDeck={handleCreateSlideDeck}
+            creatingSlideDeck={creatingSlide}
           />
 
           {/* Floating "Define" button */}
@@ -705,6 +769,40 @@ export default function EditorContainer({
 
       {/* Demo overlay */}
       {demoMode && <OverlayModal open={demoBlocked} />}
+
+      {/* Slide Deck Modal */}
+      {slideModalOpen && (
+        <Dialog open={slideModalOpen} onOpenChange={setSlideModalOpen}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Slide Deck Outline</DialogTitle>
+              <DialogDescription>
+                Bullet points generated – copy as needed.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="prose dark:prose-invert max-h-[60vh] overflow-auto">
+              <ol>
+                {slidePoints.map((p, i) => (
+                  <li key={i}>{p.text}</li>
+                ))}
+              </ol>
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  const text = slidePoints
+                    .map((p, i) => `${i + 1}. ${p.text}`)
+                    .join("\n")
+                  navigator.clipboard.writeText(text)
+                  toast({ title: "Copied to clipboard" })
+                }}
+              >
+                Copy
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

@@ -78,3 +78,30 @@ export async function getUserDictionaryAction(
     return { isSuccess: false, message: "Failed to fetch dictionary" }
   }
 }
+
+/**
+ * deleteWordFromDictionaryAction – removes a word for given user & language.
+ */
+export async function deleteWordFromDictionaryAction(
+  userId: string,
+  word: string,
+  languageCode: string = "en"
+): Promise<ActionState<boolean>> {
+  try {
+    const lower = word.toLowerCase()
+    await db
+      .delete(userDictionaryTable)
+      .where(
+        and(
+          eq(userDictionaryTable.userId, userId),
+          eq(userDictionaryTable.languageCode, languageCode),
+          eq(userDictionaryTable.word, lower)
+        )
+      )
+
+    return { isSuccess: true, message: "Word removed", data: true }
+  } catch (error) {
+    console.error("[deleteWordFromDictionaryAction] Failed", error)
+    return { isSuccess: false, message: "Failed to delete word" }
+  }
+}

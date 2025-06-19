@@ -19,11 +19,11 @@ export default async function DocumentPage({
 
   const { documentId } = await params
 
-  // Performance logging – measure the DB fetch time explicitly.
-  const timerLabel = `[DocumentPage] fetchDocument ${documentId}`
-  console.time(timerLabel)
+  // Performance logging – measure DB fetch duration without console.time label conflicts.
+  const t0 = performance.now()
   const res = await getDocumentByIdAction(userId, documentId)
-  console.timeEnd(timerLabel)
+  const durationMs = Math.round(performance.now() - t0)
+  console.log(`[DocumentPage] fetchDocument ${documentId} took ${durationMs}ms`)
 
   if (!res.isSuccess) {
     notFound()
