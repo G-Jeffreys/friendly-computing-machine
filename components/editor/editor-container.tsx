@@ -32,7 +32,7 @@ import { DEMO_WORD_LIMIT, DEMO_TIME_LIMIT_MS } from "@/lib/demo-constants"
 
 // Extracted UI components
 import EditorToolbar from "./editor-toolbar"
-import SuggestionSidebar from "./suggestion-sidebar"
+import AiSidebar from "./ai-sidebar"
 
 interface EditorContainerProps {
   initialDocument: SelectDocument
@@ -65,6 +65,7 @@ export default function EditorContainer({
     readingTimeMinutes: number
   } | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [activeTab, setActiveTab] = useState<string>("suggestions")
 
   const { toast } = useToast()
   const router = useRouter()
@@ -477,8 +478,10 @@ export default function EditorContainer({
           />
         </div>
 
-        {/* Suggestions */}
-        <SuggestionSidebar
+        {/* AI Sidebar with multiple features */}
+        <AiSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
           suggestions={suggestions}
           plainText={plainText}
           readability={readability}
