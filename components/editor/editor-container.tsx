@@ -66,6 +66,9 @@ export default function EditorContainer({
   } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState<string>("suggestions")
+  const [toneSuggestions, setToneSuggestions] = useState<
+    { original: string; revised: string }[]
+  >([])
 
   const { toast } = useToast()
   const router = useRouter()
@@ -440,6 +443,41 @@ export default function EditorContainer({
     })()
   }, [])
 
+  /* ------------------ Tone Harmonizer ------------------ */
+  const handleToneHarmonize = async () => {
+    if (!editor) return
+    setActiveTab("tone")
+    try {
+      const res = await fetch(
+        `/api/documents/${initialDocument.id}/tone-harmonizer`,
+        { method: "POST" }
+      )
+      const json = await res.json()
+      if (json.isSuccess) {
+        setToneSuggestions(json.data)
+      } else {
+        toast({
+          title: json.message || "Tone harmonizer failed",
+          variant: "destructive"
+        })
+      }
+    } catch (e) {
+      console.error(e)
+      toast({ title: "Tone harmonizer error", variant: "destructive" })
+    }
+  }
+
+  const applyToneSuggestion = (orig: string, revised: string) => {
+    if (!editor) return
+    const documentText = editor.getText()
+    const index = documentText.indexOf(orig)
+    if (index === -1) return
+    const charPositions = buildCharPositions(editor.state.doc)
+    const from = charPositions[index]
+    const to = charPositions[index + orig.length - 1] + 1
+    editor.chain().focus().insertContentAt({ from, to }, revised).run()
+  }
+
   /* ------------------------------ Render ------------------------------ */
   return (
     <div className="space-y-4">
@@ -469,6 +507,7 @@ export default function EditorContainer({
             editor={editor}
             maxMode={maxMode}
             onToggleMaxMode={() => setMaxMode(prev => !prev)}
+            onToneHarmonize={handleToneHarmonize}
           />
 
           {/* Editable content */}
@@ -488,6 +527,8 @@ export default function EditorContainer({
           stats={stats}
           onApplySuggestion={applySuggestion}
           onAddToDictionary={handleAddToDictionary}
+          toneSuggestions={toneSuggestions}
+          onAcceptToneSuggestion={applyToneSuggestion}
         />
       </div>
 

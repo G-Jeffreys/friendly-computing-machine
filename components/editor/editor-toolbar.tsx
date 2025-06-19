@@ -22,6 +22,8 @@ interface EditorToolbarProps {
   maxMode?: boolean
   /** Callback to toggle Max Mode */
   onToggleMaxMode?: () => void
+  /** Callback to run Tone Harmonizer */
+  onToneHarmonize?: () => void
 }
 
 /**
@@ -34,7 +36,8 @@ interface EditorToolbarProps {
 function EditorToolbar({
   editor,
   maxMode = false,
-  onToggleMaxMode
+  onToggleMaxMode,
+  onToneHarmonize
 }: EditorToolbarProps) {
   console.log(
     "[EditorToolbar] render – editor instance present:",
@@ -122,6 +125,17 @@ function EditorToolbar({
       >
         <RedoIcon className="size-4" />
       </Button>
+      <div className="bg-border mx-2 h-6 w-px" />
+      {typeof onToneHarmonize === "function" && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onToneHarmonize}
+          title="Run Tone Harmonizer"
+        >
+          Tone
+        </Button>
+      )}
     </div>
   )
 }
