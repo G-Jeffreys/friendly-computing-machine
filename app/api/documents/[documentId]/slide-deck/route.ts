@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
+import { and, eq, desc } from "drizzle-orm"
 import { getDocumentByIdAction } from "@/actions/db/documents-actions"
 import { slideDeckerAction } from "@/actions/ai/slide-decker-action"
 import { db } from "@/db/db"

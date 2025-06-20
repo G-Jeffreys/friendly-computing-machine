@@ -4,6 +4,11 @@ Global styles for the app.
 </ai_context>
 */
 
+:root {
+  /* Fallback border colour so that elements rendered before Tailwind's base layer still receive a valid value. */
+  --border: 220 14% 96%;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -26,7 +31,6 @@ Global styles for the app.
     --accent-foreground: 0 0% 9%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
     --ring: 0 0% 3.9%;
     --radius: 0.5rem;
@@ -43,6 +47,7 @@ Global styles for the app.
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 0 0% 89.8%;
   }
 
   .dark {

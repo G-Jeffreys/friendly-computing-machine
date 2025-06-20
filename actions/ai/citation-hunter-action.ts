@@ -1,5 +1,6 @@
 "use server"
 
+import { Redis } from "@upstash/redis"
 import { callLLM } from "@/lib/ai/llm-server"
 import { ActionState } from "@/types"
 
@@ -14,8 +15,7 @@ interface KeywordResult {
   keywords: string[]
 }
 
-// In-memory cache: keyword -> citations[] (per OpenAlex keyword query)
-const citationCache = new Map<string, CitationEntry[]>()
+const redis = Redis.fromEnv()
 
 /**
  * citationHunterAction – extracts keywords via LLM then queries OpenAlex API
@@ -44,9 +44,11 @@ export async function citationHunterAction(
     const citations: CitationEntry[] = []
 
     for (const kw of keywords) {
-      if (citationCache.has(kw)) {
+      // Check cache first
+      const cached = await redis.get<CitationEntry[]>(`citation:${kw}`)
+      if (cached) {
         console.log("[citationHunterAction] cache hit", kw)
-        citations.push(...citationCache.get(kw)!)
+        citations.push(...cached)
         continue
       }
 
@@ -74,7 +76,10 @@ export async function citationHunterAction(
           ""
       }))
 
-      citationCache.set(kw, list)
+      // Cache for 1 day
+      if (list.length > 0) {
+        await redis.set(`citation:${kw}`, JSON.stringify(list), { ex: 86400 })
+      }
       citations.push(...list)
     }
 

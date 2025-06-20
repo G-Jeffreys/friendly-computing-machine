@@ -1,6 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
-import { getDocumentByIdAction } from "@/actions/db/documents-actions"
 import { toneHarmonizerAction } from "@/actions/ai/tone-harmonizer-action"
 
 export async function POST(
@@ -13,21 +12,15 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    const { documentId } = await params
+    const body = await request.json()
+    const text = typeof body.text === "string" ? body.text : ""
 
-    // Fetch latest content from DB to avoid harmonizing stale copy.
-    const docRes = await getDocumentByIdAction(userId, documentId)
-    if (!docRes.isSuccess || !docRes.data) {
+    if (!text.trim()) {
       return NextResponse.json(
-        { message: "Document not found" },
-        { status: 404 }
+        { message: "No text provided for harmonization." },
+        { status: 400 }
       )
     }
-
-    const text =
-      typeof docRes.data.content === "string"
-        ? docRes.data.content.replace(/<[^>]+>/g, " ")
-        : ""
 
     const res = await toneHarmonizerAction(text)
     return NextResponse.json(res, { status: res.isSuccess ? 200 : 500 })

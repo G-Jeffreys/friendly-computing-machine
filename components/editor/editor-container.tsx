@@ -43,6 +43,11 @@ import {
   DialogTitle
 } from "@/components/ui/dialog"
 import posthog from "posthog-js"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger
+} from "@/components/ui/hover-card"
 
 interface EditorContainerProps {
   initialDocument: SelectDocument
@@ -56,6 +61,8 @@ interface EditorContainerProps {
 interface DefinitionEntry {
   term: string
   definition: string
+  etymology: string
+  example: string
 }
 
 /**
@@ -87,10 +94,23 @@ export default function EditorContainer({
   const [toneSuggestions, setToneSuggestions] = useState<
     { original: string; revised: string }[]
   >([])
+  const [isHarmonizing, setHarmonizing] = useState(false)
+
+  /* ------------------- Definition expander ------------------- */
+  const [definition, setDefinition] = useState<DefinitionEntry | null>(null)
+  const [definedTerm, setDefinedTerm] = useState<string>("")
+  const [isDefining, setIsDefining] = useState(false)
+  const definitionPopupRef = useRef<HTMLDivElement>(null)
+  const definitionTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   /* ------------------- Citations ------------------- */
   const [citations, setCitations] = useState<CitationEntry[]>([])
   const [findingCitations, setFindingCitations] = useState(false)
+
+  /* ------------------- Slide Decker ------------------- */
+  const [slideDeck, setSlideDeck] = useState<{ text: string }[]>([])
+  const [slideDeckHistory, setSlideDeckHistory] = useState<any[]>([])
+  const [creatingSlide, setCreatingSlide] = useState(false)
 
   const { toast } = useToast()
   const router = useRouter()
@@ -119,6 +139,24 @@ export default function EditorContainer({
   const [content, setContent] = useState(initialHtml)
   const [plainText, setPlainText] = useState<string>("")
 
+  const handleSelection = (editor: TipTapEditor) => {
+    if (definitionTimerRef.current) {
+      clearTimeout(definitionTimerRef.current)
+    }
+
+    const { from, to } = editor.state.selection
+    const text = editor.state.doc.textBetween(from, to).trim()
+
+    if (text) {
+      definitionTimerRef.current = setTimeout(() => {
+        handleDefine(text)
+      }, 500) // 500ms delay
+    } else {
+      setDefinition(null)
+      setDefinedTerm("")
+    }
+  }
+
   /* ---------------------------- Autosave logic ---------------------------- */
   const { secondsSinceLastSave, markSaved } = useAutosave({
     title,
@@ -130,28 +168,91 @@ export default function EditorContainer({
   })
 
   /* ------------------ Suggestion highlight Decoration plugin -------------- */
-  const suggestionsRef = useRef<Suggestion[]>([])
+  // Extend Suggestion with live ProseMirror positions so we can keep them
+  // mapped accurately through document edits.
+  interface PosSuggestion extends Suggestion {
+    from?: number
+    to?: number
+  }
+
+  const suggestionsRef = useRef<PosSuggestion[]>([])
+  const charPositionsRef = useRef<number[]>([])
   const decorationKey = useMemo(
     () => new PluginKey("spellGrammarHighlight"),
     []
   )
 
-  const buildCharPositions = (doc: any) => {
-    const arr: number[] = []
+  /**
+   * Builds a flat string for analysis and a parallel array mapping each
+   * character of the string back to its ProseMirror document position. This
+   * is more reliable than recreating the string separately.
+   */
+  const buildAnalysisTextAndPositions = (doc: any) => {
+    let text = ""
+    const positions: number[] = []
+
     doc.descendants((node: any, pos: number) => {
       if (node.isText) {
+        text += node.text
         for (let i = 0; i < node.text.length; i++) {
-          arr.push(pos + i)
+          positions.push(pos + i)
+        }
+      } else if (node.isBlock && node.content.size > 0) {
+        if (text.length > 0 && !/\s$/.test(text)) {
+          text += " "
+          positions.push(positions[positions.length - 1])
         }
       }
     })
-    return arr
+
+    return { analysisText: text, charPositions: positions }
   }
+
+  const runChecks = async () => {
+    if (!editor) return
+    const { analysisText, charPositions } = buildAnalysisTextAndPositions(
+      editor.state.doc
+    )
+    charPositionsRef.current = charPositions
+
+    try {
+      const result = await analyse(analysisText)
+      const newSuggestions = result.suggestions.map(s => ({
+        ...s,
+        offset: s.offset,
+        length: s.length
+      }))
+      setSuggestions(newSuggestions)
+      suggestionsRef.current = newSuggestions.map(s => s as PosSuggestion)
+
+      // rebuild decorations
+      if (editor) {
+        editor.view.dispatch(
+          editor.view.state.tr.setMeta(decorationKey, true)
+        )
+      }
+
+      setReadability(result.score)
+      setStats({
+        words: result.words,
+        sentences: result.sentences,
+        avgWordLength: result.avgWordLength,
+        readingTimeMinutes: result.readingTimeMinutes
+      })
+    } catch (e) {
+      console.error("[EditorContainer] runChecks", e)
+    }
+  }
+
+  /* ------------------- Debounced analysis helper ------------------ */
+  const debouncedRunChecks = useCallback(debounce(runChecks, 1000), []) // 1s debounce
 
   const createSuggestionPlugin = useCallback(() => {
     const buildDecorations = (doc: any) => {
       const decos: any[] = []
-      const charPositions = buildCharPositions(doc)
+      const charPositions = charPositionsRef.current
+      if (!charPositions) return DecorationSet.empty
+
       const colorClass = (t: Suggestion["type"]) =>
         t === "spell"
           ? "text-red-600 underline decoration-red-600"
@@ -162,9 +263,20 @@ export default function EditorContainer({
       suggestionsRef.current.forEach(sg => {
         const startIndex = sg.offset
         const endIndex = sg.offset + sg.length - 1
+        if (
+          startIndex >= charPositions.length ||
+          endIndex >= charPositions.length
+        ) {
+          return // suggestion is out of bounds
+        }
         const from = charPositions[startIndex]
         const to = charPositions[endIndex] + 1 // inclusive
         if (from && to) {
+          // Persist live positions on the suggestion object so we can map
+          // them through future transactions and also use them when the
+          // user accepts the suggestion.
+          ;(sg as PosSuggestion).from = from
+          ;(sg as PosSuggestion).to = to
           decos.push(
             Decoration.inline(from, to, { class: colorClass(sg.type) })
           )
@@ -179,10 +291,51 @@ export default function EditorContainer({
       state: {
         init: (_: any, { doc }: any) => buildDecorations(doc),
         apply: (tr: any, old: any) => {
-          if (tr.docChanged || tr.getMeta(decorationKey)) {
+          // ------------------------------------------------------------
+          // ProseMirror automatically maps decoration positions through
+          // document changes when we call `old.map(tr.mapping, tr.doc)`.
+          // We therefore only want to rebuild the entire decoration set
+          // **when the underlying suggestions list changes** – identified
+          // via a metadata flag we dispatch elsewhere. This prevents the
+          // highlight positions from "drifting" out of sync when the user
+          // edits the document before the expensive analysis runs again.
+          // ------------------------------------------------------------
+          // If suggestions were refreshed (flagged via setMeta) rebuild
+          // the decoration set from scratch.
+          if (tr.getMeta(decorationKey)) {
             return buildDecorations(tr.doc)
           }
-          return old
+          // Otherwise just map the existing decorations through the
+          // transaction so they stay aligned with any insertions /
+          // deletions the user makes.
+
+          // First map the highlight decorations.
+          const mapped = old.map(tr.mapping, tr.doc)
+
+          // Next map the stored suggestion positions & recompute offset so
+          // the sidebar text stays in sync.
+          const charPositionsCurr = charPositionsRef.current
+          if (charPositionsCurr) {
+            suggestionsRef.current.forEach(sg => {
+              if (sg.from !== undefined) {
+                sg.from = tr.mapping.map(sg.from)
+              }
+              if (sg.to !== undefined) {
+                sg.to = tr.mapping.map(sg.to, -1)
+              }
+
+              if (sg.from !== undefined) {
+                // Use `lastIndexOf` because the same doc position can appear
+                // twice in `charPositions` (once for the real character and
+                // once for the synthetic space between paragraphs). We want
+                // the later index to keep offsets in sync.
+                const newOffset = charPositionsCurr.lastIndexOf(sg.from)
+                if (newOffset !== -1) sg.offset = newOffset
+              }
+            })
+          }
+
+          return mapped
         }
       },
       props: {
@@ -214,20 +367,16 @@ export default function EditorContainer({
       }),
       suggestionDecorationExt
     ],
-    content: initialHtml,
-    onUpdate: ({ editor }: { editor: TipTapEditor }) => {
+    content: content,
+    onUpdate: ({ editor }) => {
       const html = editor.getHTML()
+      setContent(html) // Keep content state in sync for autosave
       const text = editor.getText()
-
-      // ProseMirror stores paragraphs as nodes without the newline character
-      const cleanedText = text.replace(/\n/g, "")
-
-      setPlainText(text)
-      setContent(html)
+      setPlainText(text) // For other features
 
       /* -------- Demo mode word / time limiter -------- */
       if (demoMode) {
-        const wordCount = cleanedText.trim().split(/\s+/).filter(Boolean).length
+        const wordCount = html.trim().split(/\s+/).filter(Boolean).length
 
         if (wordCount > DEMO_WORD_LIMIT) {
           if (!timerRef.current) {
@@ -246,75 +395,17 @@ export default function EditorContainer({
       }
 
       /* -------- Trigger expensive analysis (debounced) -------- */
-      debouncedRunChecks(cleanedText)
+      debouncedRunChecks()
+    },
+    onSelectionUpdate: ({ editor }) => {
+      handleSelection(editor)
+    },
+    editorProps: {
+      attributes: {
+        class: "prose dark:prose-invert max-h-[60vh] min-h-[50vh] overflow-auto p-4 focus:outline-none"
+      }
     }
   })
-
-  /* ------------------- Debounced analysis helper ------------------ */
-  const debouncedRunChecks = useRef(
-    debounce((txt: string) => {
-      // eslint-disable-next-line no-console
-      console.log("[EditorContainer] debouncedRunChecks executing")
-      runChecks(txt)
-    }, 750)
-  ).current
-
-  /* ------------------------------ Analysis ------------------------------ */
-  const runChecks = async (input: string) => {
-    let res: any
-
-    if (maxMode) {
-      // When Max Mode is enabled we get stats via local worker *but* grammar suggestions via LLM.
-      const [statsRes, llmRes] = await Promise.all([
-        analyse(input),
-        fetch("/api/grammar-check", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: input })
-        }).then(r => r.json())
-      ])
-
-      res = {
-        ...statsRes,
-        suggestions: (Array.isArray(llmRes?.data)
-          ? llmRes.data
-          : []) as Suggestion[]
-      }
-    } else {
-      res = await analyse(input)
-    }
-
-    // Filter spell suggestions using dictionary.
-    const filteredSuggestions = (res.suggestions as Suggestion[]).filter(
-      (sg: Suggestion) => {
-        if (sg.type !== "spell") return true
-        const word = input
-          .substring(sg.offset, sg.offset + sg.length)
-          .toLowerCase()
-        return !dictionaryRef.current.has(word)
-      }
-    )
-
-    const map = new Map(filteredSuggestions.map((s: Suggestion) => [s.id, s]))
-    const unique = Array.from(map.values())
-    setSuggestions(unique)
-    suggestionsRef.current = unique
-
-    // rebuild decorations
-    if (editor) {
-      const tr = editor.state.tr
-      tr.setMeta(decorationKey, true)
-      editor.view.dispatch(tr)
-    }
-
-    setReadability(res.score)
-    setStats({
-      words: res.words,
-      sentences: res.sentences,
-      avgWordLength: res.avgWordLength,
-      readingTimeMinutes: res.readingTimeMinutes
-    })
-  }
 
   /* ------------------------------ Handlers ------------------------------ */
   const handleSave = () => {
@@ -404,7 +495,7 @@ export default function EditorContainer({
 
       if (e.key === "Enter") {
         e.preventDefault()
-        const cleanNow = (editor?.getText() || "").replace(/\n/g, "")
+        const cleanNow = (editor?.getText() || "").replace(/\n+/g, " ")
         runChecks(cleanNow)
       }
     },
@@ -420,12 +511,35 @@ export default function EditorContainer({
   /* ------------------------ Apply suggestion ------------------------ */
   const applySuggestion = (sg: Suggestion, replacement: string) => {
     if (!editor) return
-    const charPositions = buildCharPositions(editor.state.doc)
-    const from = charPositions[sg.offset]
-    const to = charPositions[sg.offset + sg.length - 1] + 1
+    // Prefer live `from`/`to` positions if available for accuracy.
+    const ps = sg as PosSuggestion
+    let from = ps.from
+    let to = ps.to
+
+    if (from === undefined || to === undefined) {
+      const charPositions = charPositionsRef.current
+      if (charPositions) {
+        from = charPositions[sg.offset]
+        to = charPositions[sg.offset + sg.length - 1] + 1
+      }
+    }
     if (!from || !to) return
 
     editor.chain().focus().insertContentAt({ from, to }, replacement).run()
+
+    // Remove the suggestion from state so it disappears instantly and can't
+    // be applied twice, then rebuild decorations.
+    setSuggestions(prev => prev.filter(s => s.id !== sg.id))
+    suggestionsRef.current = suggestionsRef.current.filter(s => s.id !== sg.id)
+
+    const tr = editor.state.tr
+    tr.setMeta(decorationKey, true)
+    editor.view.dispatch(tr)
+
+    // Re-run checks to remove the used suggestion.
+    setTimeout(() => {
+      runChecks()
+    }, 50)
   }
 
   /* ------------------- Dictionary integration ------------------- */
@@ -448,8 +562,8 @@ export default function EditorContainer({
 
       dictionaryRef.current.add(word.toLowerCase())
 
-      // Re-run checks so the newly added word disappears from suggestions.
-      runChecks(plainText.replace(/\n/g, ""))
+      // Refresh suggestions
+      runChecks()
     } catch (error) {
       console.error("[EditorContainer] handleAddToDictionary", error)
       toast({ title: "Server error", variant: "destructive" })
@@ -461,7 +575,7 @@ export default function EditorContainer({
     if (editor) {
       const initialText = editor.getText()
       setPlainText(initialText)
-      runChecks(initialText.replace(/\n/g, ""))
+      runChecks()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor])
@@ -491,24 +605,42 @@ export default function EditorContainer({
   /* ------------------ Tone Harmonizer ------------------ */
   const handleToneHarmonize = async () => {
     if (!editor) return
+
+    let textToHarmonize = plainText // Fallback to full document
+    const { from, to, empty } = editor.state.selection
+    if (!empty) {
+      textToHarmonize = editor.state.doc.textBetween(from, to)
+    }
+
+    if (!textToHarmonize.trim()) {
+      toast({
+        title: "No text selected",
+        description: "Please select text to harmonize or leave it blank to analyze the whole document."
+      })
+      return
+    }
+
+    setHarmonizing(true)
     setActiveTab("tone")
     try {
       const res = await fetch(
         `/api/documents/${initialDocument.id}/tone-harmonizer`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: textToHarmonize })
+        }
       )
       const json = await res.json()
       if (json.isSuccess) {
         setToneSuggestions(json.data)
       } else {
-        toast({
-          title: json.message || "Tone harmonizer failed",
-          variant: "destructive"
-        })
+        toast({ title: "Error", description: json.message })
       }
     } catch (e) {
-      console.error(e)
-      toast({ title: "Tone harmonizer error", variant: "destructive" })
+      toast({ title: "Error", description: "Failed to fetch tone suggestions." })
+    } finally {
+      setHarmonizing(false)
     }
   }
 
@@ -517,7 +649,7 @@ export default function EditorContainer({
     const documentText = editor.getText()
     const index = documentText.indexOf(orig)
     if (index === -1) return
-    const charPositions = buildCharPositions(editor.state.doc)
+    const charPositions = charPositionsRef.current
     const from = charPositions[index]
     const to = charPositions[index + orig.length - 1] + 1
     editor.chain().focus().insertContentAt({ from, to }, revised).run()
@@ -532,33 +664,45 @@ export default function EditorContainer({
   } | null>(null)
 
   /* ------------------ Definition handler ------------------ */
-  const handleDefine = async () => {
-    if (!defineAnchor) return
-    const term = defineAnchor.text.trim()
-    console.log("[EditorContainer] handleDefine term", term)
-    setActiveTab("definitions")
+  const handleDefine = async (selection: string) => {
+    if (!editor || !selection || selection === definedTerm) return
+
+    const { from } = editor.state.selection
+    if (!selection || selection.length > 100) {
+      setDefinition(null)
+      return
+    }
+
+    // Position popup near selection
+    if (definitionPopupRef.current) {
+      const { top, left } = editor.view.coordsAtPos(from)
+      // add scroll position to top
+      const scrollY = window.scrollY
+      definitionPopupRef.current.style.top = `${top + scrollY + 20}px`
+      definitionPopupRef.current.style.left = `${left}px`
+    }
+
+    setIsDefining(true)
+
     try {
       const res = await fetch("/api/definitions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ term })
+        body: JSON.stringify({ term: selection })
       })
-      const json = await res.json()
-      if (json.data) {
-        setDefinitions(prev => [...prev, json.data])
-        toast({ title: `Definition added for "${term}"` })
-      } else {
-        toast({
-          title: json.message || "Failed to fetch definition",
-          variant: "destructive"
-        })
+      if (res.ok) {
+        const json = await res.json()
+        setDefinition(json.data)
+        setDefinedTerm(selection)
       }
     } catch (e) {
-      console.error("[EditorContainer] handleDefine error", e)
-      toast({ title: "Server error", variant: "destructive" })
+      console.error(e)
     } finally {
-      setDefineAnchor(null)
+      setIsDefining(false)
     }
+  }
+
+  const onMouseUp = () => {
+    // This is now handled by onSelectionUpdate
   }
 
   /* ---------------- Selection listener ----------------- */
@@ -596,46 +740,55 @@ export default function EditorContainer({
 
   /* ------------------ Find citations ------------------ */
   const handleFindCitations = async () => {
-    if (findingCitations) return
-    setFindingCitations(true)
-    setActiveTab("citations")
-    try {
-      const res = await fetch(
-        `/api/documents/${initialDocument.id}/citations`,
-        { method: "POST" }
-      )
-      const json = await res.json()
-      if (json.isSuccess) {
-        setCitations(json.data)
-      } else {
-        toast({
-          title: json.message || "Citation hunter failed",
-          variant: "destructive"
-        })
+    if (demoMode && plainText.split(/\s+/).length > DEMO_WORD_LIMIT) {
+      setFindingCitations(true)
+      setActiveTab("citations")
+      try {
+        const res = await fetch(
+          `/api/documents/${initialDocument.id}/citations`,
+          { method: "POST" }
+        )
+        const json = await res.json()
+        if (json.isSuccess) {
+          setCitations(json.data)
+        } else {
+          toast({
+            title: json.message || "Citation hunter failed",
+            variant: "destructive"
+          })
+        }
+      } catch (e) {
+        console.error("[EditorContainer] handleFindCitations", e)
+        toast({ title: "Server error", variant: "destructive" })
+      } finally {
+        setFindingCitations(false)
       }
-    } catch (e) {
-      console.error("[EditorContainer] handleFindCitations", e)
-      toast({ title: "Server error", variant: "destructive" })
-    } finally {
-      setFindingCitations(false)
     }
   }
 
   /* ------------------ Slide Decker ------------------ */
   const [slidePoints, setSlidePoints] = useState<{ text: string }[]>([])
-  const [creatingSlide, setCreatingSlide] = useState(false)
   const [slideModalOpen, setSlideModalOpen] = useState(false)
 
   const handleCreateSlideDeck = async () => {
     if (!editor || creatingSlide) return
-    const minutesStr = prompt("Talk length in minutes", "30")
-    if (!minutesStr) return
+    const minutesStr = prompt(
+      "Enter the desired length of your presentation in minutes:",
+      "10"
+    )
+    if (!minutesStr) return // User cancelled
+
     const minutes = parseInt(minutesStr, 10)
     if (isNaN(minutes) || minutes <= 0) {
-      toast({ title: "Invalid minutes", variant: "destructive" })
+      toast({
+        title: "Invalid number",
+        description: "Please enter a positive number for the minutes."
+      })
       return
     }
+
     setCreatingSlide(true)
+    setActiveTab("slides")
     try {
       const res = await fetch(
         `/api/documents/${initialDocument.id}/slide-deck`,
@@ -647,26 +800,33 @@ export default function EditorContainer({
       )
       const json = await res.json()
       if (json.isSuccess) {
-        setSlidePoints(json.data)
-        setSlideModalOpen(true)
-        if (typeof window !== "undefined" && posthog?.capture) {
-          posthog.capture("slide_deck.created", {
-            minutes,
-            points: json.data.length
-          })
+        setSlideDeck(json.data)
+        // Refresh history
+        const histRes = await fetch(
+          `/api/documents/${initialDocument.id}/slide-deck`
+        )
+        const histJson = await histRes.json()
+        if (histJson.isSuccess) {
+          setSlideDeckHistory(histJson.data)
         }
       } else {
-        toast({
-          title: json.message || "Slide deck failed",
-          variant: "destructive"
-        })
+        toast({ title: "Error", description: json.message })
       }
     } catch (e) {
-      console.error("[EditorContainer] handleCreateSlideDeck", e)
-      toast({ title: "Server error", variant: "destructive" })
+      toast({
+        title: "Error",
+        description: "Failed to create slide deck."
+      })
     } finally {
       setCreatingSlide(false)
     }
+  }
+
+  const handleInsertCitation = (citation: CitationEntry) => {
+    if (!editor) return
+    const { title, authors, journal } = citation
+    const formatted = `${authors} (${journal}). ${title}.`
+    editor.chain().focus().insertContent(formatted).run()
   }
 
   /* ------------------------------ Render ------------------------------ */
@@ -692,41 +852,45 @@ export default function EditorContainer({
 
       <div className="flex gap-6">
         {/* Rich text editor */}
-        <div className="relative flex-1">
-          {/* Toolbar */}
+        <div
+          onClick={() => {
+            if (editor && !editor.isFocused) {
+              editor.chain().focus().run()
+            }
+          }}
+          onBlur={() => handleSave()}
+          className="relative flex-1"
+        >
           <EditorToolbar
             editor={editor}
-            maxMode={maxMode}
-            onToggleMaxMode={checked => {
-              setMaxMode(checked)
-              if (typeof window !== "undefined" && posthog?.capture) {
-                posthog.capture("max_mode.toggled", { enabled: checked })
-              }
-            }}
             onToneHarmonize={handleToneHarmonize}
             onFindCitations={handleFindCitations}
             findingCitations={findingCitations}
             onCreateSlideDeck={handleCreateSlideDeck}
             creatingSlideDeck={creatingSlide}
           />
-
-          {/* Floating "Define" button */}
-          {defineAnchor && (
-            <button
-              onClick={handleDefine}
-              className="absolute z-20 rounded bg-blue-600 px-2 py-1 text-xs text-white shadow"
-              style={{ top: defineAnchor.y + 8, left: defineAnchor.x + 8 }}
-            >
-              Define
-            </button>
-          )}
-
-          {/* Editable content */}
-          <EditorContent
-            editor={editor}
-            className="prose dark:prose-invert max-h-[60vh] min-h-[50vh] overflow-auto p-4 focus:outline-none"
-          />
+          <EditorContent editor={editor} />
         </div>
+
+        {definition && (
+          <div
+            ref={definitionPopupRef}
+            className="absolute z-10 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95"
+          >
+            <h4 className="font-bold">{definition.term}</h4>
+            <p className="text-sm">{definition.definition}</p>
+            <div className="mt-2 text-xs text-muted-foreground">
+              <p>
+                <span className="font-semibold">Etymology:</span>{" "}
+                {definition.etymology}
+              </p>
+              <p className="mt-1">
+                <span className="font-semibold">Example:</span>{" "}
+                <em>{definition.example}</em>
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* AI Sidebar with multiple features */}
         <AiSidebar
@@ -740,8 +904,14 @@ export default function EditorContainer({
           onAddToDictionary={handleAddToDictionary}
           toneSuggestions={toneSuggestions}
           onAcceptToneSuggestion={applyToneSuggestion}
-          definitions={definitions}
           citations={citations}
+          onInsertCitation={handleInsertCitation}
+          findingCitations={findingCitations}
+          slideDeck={slideDeck}
+          slideDeckHistory={slideDeckHistory}
+          onCreateSlideDeck={handleCreateSlideDeck}
+          creatingSlideDeck={creatingSlide}
+          definitions={[]}
         />
       </div>
 
@@ -782,7 +952,7 @@ export default function EditorContainer({
             </DialogHeader>
             <div className="prose dark:prose-invert max-h-[60vh] overflow-auto">
               <ol>
-                {slidePoints.map((p, i) => (
+                {slideDeck.map((p, i) => (
                   <li key={i}>{p.text}</li>
                 ))}
               </ol>
@@ -790,7 +960,7 @@ export default function EditorContainer({
             <DialogFooter>
               <Button
                 onClick={() => {
-                  const text = slidePoints
+                  const text = slideDeck
                     .map((p, i) => `${i + 1}. ${p.text}`)
                     .join("\n")
                   navigator.clipboard.writeText(text)

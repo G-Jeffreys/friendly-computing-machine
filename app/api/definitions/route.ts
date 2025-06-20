@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
-import { definitionExpanderAction } from "@/actions/ai/tone-harmonizer-action"
+import { definitionExpanderAction } from "@/actions/ai/definition-expander-action"
 
 /**
  * POST /api/definitions

@@ -1,12 +1,17 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
+import { Ratelimit } from "@upstash/ratelimit"
+import { Redis } from "@upstash/redis"
 import { getDocumentByIdAction } from "@/actions/db/documents-actions"
 import { citationHunterAction } from "@/actions/ai/citation-hunter-action"
 
-// Simple per-user rate limiter (in-memory)
-const WINDOW_MS = 60_000 // 1 minute window
-const MAX_REQS = 5 // max citation requests per user per window
-const userCounters = new Map<string, { count: number; expires: number }>()
+// Create a new ratelimiter, that allows 5 requests per 1 minute
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(5, "1 m"),
+  analytics: true,
+  prefix: "@upstash/ratelimit"
+})
 
 export async function POST(
   request: Request,
@@ -18,32 +23,16 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    const { documentId } = await params
-
-    // Rate limit check
-    const now = Date.now()
-    const counter = userCounters.get(userId) || {
-      count: 0,
-      expires: now + WINDOW_MS
-    }
-    if (now > counter.expires) {
-      counter.count = 0
-      counter.expires = now + WINDOW_MS
-    }
-    counter.count += 1
-    userCounters.set(userId, counter)
-    console.log("[API/citations] rate", {
-      userId,
-      count: counter.count,
-      limit: MAX_REQS
-    })
-
-    if (counter.count > MAX_REQS) {
+    // Rate limit by userId
+    const { success } = await ratelimit.limit(userId)
+    if (!success) {
       return NextResponse.json(
         { message: "Rate limit exceeded – please wait and try again." },
         { status: 429 }
       )
     }
+
+    const { documentId } = await params
 
     const docRes = await getDocumentByIdAction(userId, documentId)
     if (!docRes.isSuccess || !docRes.data) {

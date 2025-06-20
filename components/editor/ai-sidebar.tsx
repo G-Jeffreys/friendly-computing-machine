@@ -1,7 +1,13 @@
-import { memo, useMemo } from "react"
+import { memo, useMemo, useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import SuggestionSidebar from "./suggestion-sidebar"
 import type { Suggestion } from "@/lib/hooks/use-spell-grammar"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
+
+import type { CitationEntry } from "@/actions/ai/citation-hunter-action"
+import type { Editor as TipTapEditor } from "@tiptap/core"
 
 interface Stats {
   words: number
@@ -15,11 +21,10 @@ interface DefinitionEntry {
   definition: string
 }
 
-interface CitationEntry {
-  title: string
-  authors: string
-  journal: string
-  url: string
+interface SlideDeckHistoryEntry {
+  id: string
+  outline: { text: string }[]
+  createdAt: string
 }
 
 interface AiSidebarProps {
@@ -47,6 +52,13 @@ interface AiSidebarProps {
 
   /* ---------------- Slides -------------------- */
   slidesMarkdown?: string
+
+  onInsertCitation: (citation: CitationEntry) => void
+  findingCitations: boolean
+  slideDeck: { text: string }[]
+  slideDeckHistory: SlideDeckHistoryEntry[]
+  onCreateSlideDeck: (minutes: number) => void
+  creatingSlideDeck: boolean
 }
 
 function AiSidebar({
@@ -62,8 +74,27 @@ function AiSidebar({
   citations = [],
   toneSuggestions = [],
   slidesMarkdown,
-  onAcceptToneSuggestion
+  onAcceptToneSuggestion,
+  onInsertCitation,
+  findingCitations,
+  slideDeck,
+  slideDeckHistory,
+  onCreateSlideDeck,
+  creatingSlideDeck
 }: AiSidebarProps) {
+  const [slideDecks, setSlideDecks] = useState<SlideDeckHistoryEntry[]>([])
+  const [
+    selectedDeck,
+    setSelectedDeck
+  ] = useState<SlideDeckHistoryEntry | null>(null)
+
+  useEffect(() => {
+    // This is a placeholder. In a real app, you'd fetch this from the document.
+    if (activeTab === "slides") {
+      setSlideDecks(slideDeckHistory)
+    }
+  }, [activeTab, slideDeckHistory])
+
   const hasDefinitions = definitions.length > 0
   const hasCitations = citations.length > 0
   const hasTone = toneSuggestions.length > 0
@@ -90,25 +121,51 @@ function AiSidebar({
       return <p className="text-muted-foreground text-sm">No citations yet</p>
     }
     return (
-      <ul className="space-y-2 text-sm">
-        {citations.map(c => (
-          <li key={c.url} className="leading-tight">
-            <a
-              href={c.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              {c.title}
-            </a>
-            <div className="text-muted-foreground text-xs">
-              {c.authors} — {c.journal}
-            </div>
-          </li>
-        ))}
-      </ul>
+      <div className="p-4">
+        <h3 className="mb-2 font-semibold">Suggested Citations</h3>
+        {findingCitations ? (
+          <p className="text-sm text-muted-foreground">Searching...</p>
+        ) : citations.length > 0 ? (
+          <ul className="space-y-4">
+            {citations.map((c, i) => (
+              <li key={i} className="text-sm">
+                <p className="font-bold">{c.title}</p>
+                <p className="text-muted-foreground">{c.authors}</p>
+                <p className="text-xs italic text-muted-foreground">
+                  {c.journal}
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onInsertCitation(c)}
+                  >
+                    Insert
+                  </Button>
+                  {c.url && (
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button size="sm" variant="ghost">
+                        Source
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No citations found. Try running the citation hunter from the
+            editor toolbar.
+          </p>
+        )}
+      </div>
     )
-  }, [citations, hasCitations])
+  }, [citations, findingCitations, onInsertCitation])
 
   const toneContent = useMemo(() => {
     if (!hasTone) {
@@ -151,6 +208,66 @@ function AiSidebar({
     )
   }, [slidesMarkdown, hasSlides])
 
+  const slideContent = useMemo(() => {
+    const points = selectedDeck ? selectedDeck.outline : slideDeck
+    return (
+      <div className="p-4">
+        <h3 className="mb-2 font-semibold">Slide Deck</h3>
+        <div className="mb-4">
+          <Button onClick={() => onCreateSlideDeck(10)}>
+            {creatingSlideDeck ? "Generating..." : "Generate New (10 min)"}
+          </Button>
+        </div>
+        {slideDecks.length > 0 && (
+          <div className="mt-4 border-t pt-4">
+            <h4 className="mb-2 text-sm font-semibold">History</h4>
+            <ScrollArea className="h-40">
+              <div className="space-y-2">
+                {slideDecks.map(deck => (
+                  <button
+                    key={deck.id}
+                    onClick={() => setSelectedDeck(deck)}
+                    className={cn(
+                      "w-full rounded-md border p-2 text-left text-xs",
+                      selectedDeck?.id === deck.id && "bg-muted"
+                    )}
+                  >
+                    <p>
+                      {new Date(deck.createdAt).toLocaleString([], {
+                        dateStyle: "medium",
+                        timeStyle: "short"
+                      })}
+                    </p>
+                    <p className="truncate text-muted-foreground">
+                      {deck.outline.length} points
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+        {points.length > 0 && (
+          <ScrollArea className="mt-4 h-72">
+            <ul className="space-y-2 text-sm">
+              {points.map((p, i) => (
+                <li key={i} className="leading-tight">
+                  {p.text}
+                </li>
+              ))}
+            </ul>
+          </ScrollArea>
+        )}
+      </div>
+    )
+  }, [
+    selectedDeck,
+    slideDeck,
+    onCreateSlideDeck,
+    creatingSlideDeck,
+    slideDecks
+  ])
+
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-72">
       <TabsList className="sticky top-0 z-10 mb-2">
@@ -183,7 +300,7 @@ function AiSidebar({
       <TabsContent value="tone">{toneContent}</TabsContent>
 
       {/* Slides */}
-      <TabsContent value="slides">{slidesContent}</TabsContent>
+      <TabsContent value="slides">{slideContent}</TabsContent>
     </Tabs>
   )
 }

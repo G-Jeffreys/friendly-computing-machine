@@ -51,6 +51,13 @@ function SuggestionSidebar({
         suggestions.map(sg => (
           <div key={sg.id} className="rounded border p-2 text-sm">
             <p>
+              {/*
+                LanguageTool & write-good operate on a version of the text
+                without newline characters.  The `plainText` we receive
+                from TipTap *does* include newlines between paragraphs,
+                which causes offsets to drift after the first paragraph.
+                Strip them here so the substring aligns perfectly.
+              */}
               <span
                 className={
                   sg.type === "spell"
@@ -60,7 +67,7 @@ function SuggestionSidebar({
                       : "text-purple-600"
                 }
               >
-                {plainText.substring(sg.offset, sg.offset + sg.length)}
+                {plainText.replace(/\n+/g, " ").substring(sg.offset, sg.offset + sg.length)}
               </span>
               : {sg.message}
             </p>
