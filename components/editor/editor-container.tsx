@@ -543,8 +543,7 @@ export default function EditorContainer({
 
       if (e.key === "Enter") {
         e.preventDefault()
-        const cleanNow = (editor?.getText() || "").replace(/\n+/g, " ")
-        runChecks(cleanNow)
+        runChecks()
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
