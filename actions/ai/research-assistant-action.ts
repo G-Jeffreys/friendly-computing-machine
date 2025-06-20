@@ -6,7 +6,8 @@ import {
 } from "./tone-harmonizer-action"
 import {
   citationHunterAction,
-  CitationEntry
+  CitationEntry,
+  CitationHunterPayload
 } from "./citation-hunter-action"
 import { slideDeckerAction, SlidePoint } from "./slide-decker-action"
 import { ActionState } from "@/types"
@@ -14,6 +15,7 @@ import { ActionState } from "@/types"
 export interface ResearchReport {
   toneSuggestions: ToneSuggestion[]
   citations: CitationEntry[]
+  citationKeywords: string[]
   slideDeck: SlidePoint[]
 }
 
@@ -32,9 +34,12 @@ export async function researchAssistantAction(
       slideDeckerAction(text, slideDeckMinutes)
     ])
 
+    const citationData = citationRes.data as CitationHunterPayload | undefined
+
     const report: ResearchReport = {
       toneSuggestions: toneRes.data || [],
-      citations: citationRes.data || [],
+      citations: citationData?.citations || [],
+      citationKeywords: citationData?.keywords || [],
       slideDeck: slideRes.data || []
     }
 
