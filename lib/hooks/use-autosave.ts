@@ -15,6 +15,8 @@ import { useEffect, useRef, useState } from "react"
 interface UseAutosaveParams {
   title: string
   content: string
+  /** Whether LLM-based analysis is enabled */
+  maxMode?: boolean
   documentId: string
   /** Disable autosave completely (used for demo / anonymous sessions). */
   demoMode: boolean
@@ -38,6 +40,7 @@ interface UseAutosaveResult {
 export function useAutosave({
   title,
   content,
+  maxMode,
   documentId,
   demoMode,
   updatedAt,
@@ -54,6 +57,7 @@ export function useAutosave({
   const errorRef = useRef<string | null>(null)
   const secondsSinceSaveRef = useRef(0)
   const isDirtyRef = useRef(false)
+  const maxModeRef = useRef<boolean | undefined>(maxMode)
 
   /* ---------------------------------------------------------------------- */
   /* State exposed to the component.                                        */
@@ -70,14 +74,16 @@ export function useAutosave({
   useEffect(() => {
     if (
       title !== lastSavedTitleRef.current ||
-      content !== lastSavedContentRef.current
+      content !== lastSavedContentRef.current ||
+      maxMode !== maxModeRef.current
     ) {
       isDirtyRef.current = true
     }
     // keep live refs in sync so the interval callback reads the latest values.
     lastSavedTitleRef.current = title
     lastSavedContentRef.current = content
-  }, [title, content])
+    maxModeRef.current = maxMode
+  }, [title, content, maxMode])
 
   /* ---------------------------------------------------------------------- */
   /* Secondary 1-second tick – updates the counter we display in the UI.    */
@@ -133,6 +139,7 @@ export function useAutosave({
         body: JSON.stringify({
           title: lastSavedTitleRef.current,
           content: lastSavedContentRef.current,
+          maxMode: maxModeRef.current,
           updatedAt: updatedAtRef.current // optimistic-concurrency token
         })
       })

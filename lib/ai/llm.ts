@@ -8,6 +8,9 @@
   NOTE: All strings such as base URLs or model names MUST come from env vars to satisfy repository rules.
 */
 
+import posthog from "posthog-js"
+// The PostHog browser SDK is safe to import because this file is "use client".
+
 // Type describing the options accepted by the helper
 export interface CallLLMOptions {
   /**
@@ -27,6 +30,8 @@ export interface CallLLMOptions {
   temperature?: number
   /** Max tokens (OpenAI) */
   maxTokens?: number
+  /** Optional label for analytics – e.g. "tone_harmonizer" */
+  feature?: string
 }
 
 // In-memory cache (best-effort, per serverless instance or browser tab)
@@ -88,26 +93,51 @@ export async function callLLM<T = any>(opts: CallLLMOptions): Promise<T> {
         throw new Error("[callLLM] Missing AI_API_KEY / OPENAI_API_KEY env var")
       }
 
-      const model = opts.model ?? process.env.AI_MODEL ?? "gpt-3.5-turbo"
+      // ----------------------------------------------
+      // Model tiering – prefer large, fall back.
+      // ----------------------------------------------
+      const preferredModel =
+        opts.model ?? process.env.AI_MODEL_LARGE ?? "gpt-4o"
+      const fallbackModel =
+        process.env.AI_MODEL_FALLBACK_LARGE ?? "gpt-3.5-turbo-16k"
+
       const temperature = opts.temperature ?? 0.2
       const maxTokens = opts.maxTokens ?? 1024
 
-      const res = await fetch(baseUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: opts.prompt }],
-          temperature,
-          max_tokens: maxTokens
-        })
+      const payload = (modelName: string) => ({
+        model: modelName,
+        messages: [{ role: "user", content: opts.prompt }],
+        temperature,
+        max_tokens: maxTokens
       })
 
-      const json = await res.json()
-      data = json.choices?.[0]?.message?.content ?? ""
+      const doFetch = async (modelName: string) => {
+        const r = await fetch(baseUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(payload(modelName))
+        })
+        if (!r.ok) {
+          throw new Error(`${r.status}`)
+        }
+        return r.json()
+      }
+
+      try {
+        const json = await doFetch(preferredModel)
+        data = json.choices?.[0]?.message?.content ?? ""
+        // record success for analytics
+        captureLLMEvent(opts.feature, preferredModel, opts.prompt, data)
+      } catch (e) {
+        console.warn(`[callLLM] preferred model failed, falling back`, e)
+        const json = await doFetch(fallbackModel)
+        data = json.choices?.[0]?.message?.content ?? ""
+        captureLLMEvent(opts.feature, fallbackModel, opts.prompt, data)
+      }
+
       break
     }
   }
@@ -116,4 +146,30 @@ export async function callLLM<T = any>(opts: CallLLMOptions): Promise<T> {
   memoryCache.set(key, data)
 
   return data as T
+}
+
+/* -------------------------------------------------------------------- */
+/* Helper: Capture event to PostHog (browser only).                      */
+/* -------------------------------------------------------------------- */
+function captureLLMEvent(
+  feature: string | undefined,
+  model: string,
+  promptOrTextIn: string | undefined,
+  textOut: string
+) {
+  if (typeof window === "undefined") return
+  if (!posthog?.capture) return
+
+  // Rough token estimation (1 token ~= 0.75 words).
+  const wordsIn = (promptOrTextIn ?? "").split(/\s+/).length
+  const wordsOut = (textOut ?? "").split(/\s+/).length
+  const tokensIn = Math.round(wordsIn / 0.75)
+  const tokensOut = Math.round(wordsOut / 0.75)
+
+  posthog.capture("llm.call", {
+    feature: feature ?? "generic",
+    model,
+    tokens_in: tokensIn,
+    tokens_out: tokensOut
+  })
 }

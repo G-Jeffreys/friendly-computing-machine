@@ -15,6 +15,20 @@
       "when": 1750162952602,
       "tag": "0001_foamy_khan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1750299616165,
+      "tag": "0002_lovely_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1750356274504,
+      "tag": "0003_outgoing_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "user_dictionary" ADD CONSTRAINT "user_dictionary_user_id_language_code_word_unique" UNIQUE("user_id","language_code","word");

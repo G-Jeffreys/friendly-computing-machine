@@ -4,6 +4,11 @@ Global styles for the app.
 </ai_context>
 */
 
+:root {
+  /* Fallback border colour so that elements rendered before Tailwind's base layer still receive a valid value. */
+  --border: 220 14% 96%;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -26,7 +31,6 @@ Global styles for the app.
     --accent-foreground: 0 0% 9%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
     --ring: 0 0% 3.9%;
     --radius: 0.5rem;
@@ -43,6 +47,7 @@ Global styles for the app.
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 0 0% 89.8%;
   }
 
   .dark {
@@ -89,4 +94,41 @@ Global styles for the app.
     /* Use the default sans-serif font (Inter loaded in RootLayout) */
     @apply bg-background text-foreground font-sans;
   }
+}
+
+.new-document-highlight .ProseMirror {
+  animation: halo-effect 1.5s ease-out;
+  border-color: hsl(var(--primary));
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+@keyframes halo-effect {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 10px hsl(var(--primary) / 0);
+  }
+}
+
+.paginated-editor-area {
+  height: calc(100vh - 250px); /* Adjust as needed */
+  overflow-y: auto;
+  border: 1px solid hsl(var(--border));
+  padding: 1rem;
+}
+
+.paginated-editor-area .ProseMirror {
+  background: linear-gradient(to bottom, transparent 1049px, hsl(var(--border)) 1049px, hsl(var(--border)) 1050px);
+  background-size: 100% 1050px; /* A4 paper height in pixels at 96 DPI is ~1122, leaving room for padding */
+  padding: 2rem 4rem; /* Simulate margins */
+}
+
+.page-counter {
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  border-top: 1px solid hsl(var(--border));
 }

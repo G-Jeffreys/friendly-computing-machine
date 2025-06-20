@@ -14,10 +14,25 @@ import {
   Link as LinkIcon
 } from "lucide-react"
 import type { Editor as TipTapEditor } from "@tiptap/core"
+import { Switch } from "@/components/ui/switch"
 
 interface EditorToolbarProps {
   /** The active TipTap editor instance. */
   editor: TipTapEditor | null
+  /** When true LLM-enhanced "Max Mode" is enabled for this document */
+  maxMode?: boolean
+  /** Callback when Max Mode switch toggles */
+  onToggleMaxMode?: (checked: boolean) => void
+  /** Callback to run Tone Harmonizer */
+  onToneHarmonize?: () => void
+  /** Callback to find relevant citations */
+  onFindCitations?: () => void
+  /** When true Cite button shows spinner/disabled */
+  findingCitations?: boolean
+  /** Callback to create slide deck */
+  onCreateSlideDeck?: () => void
+  /** When true the Slide button shows spinner/disabled */
+  creatingSlideDeck?: boolean
 }
 
 /**
@@ -27,7 +42,16 @@ interface EditorToolbarProps {
  * independently. All controls proxy their actions through the provided
  * `editor` instance.
  */
-function EditorToolbar({ editor }: EditorToolbarProps) {
+function EditorToolbar({
+  editor,
+  maxMode = false,
+  onToggleMaxMode,
+  onToneHarmonize,
+  onFindCitations,
+  findingCitations = false,
+  onCreateSlideDeck,
+  creatingSlideDeck = false
+}: EditorToolbarProps) {
   console.log(
     "[EditorToolbar] render – editor instance present:",
     Boolean(editor)
@@ -114,6 +138,53 @@ function EditorToolbar({ editor }: EditorToolbarProps) {
       >
         <RedoIcon className="size-4" />
       </Button>
+      {/* ---------------- Max Mode Toggle ---------------- */}
+      {typeof onToggleMaxMode === "function" && (
+        <div className="flex items-center gap-1 px-2">
+          <Switch
+            id="max-mode-toggle"
+            checked={maxMode}
+            onCheckedChange={onToggleMaxMode}
+            aria-label="Toggle Max Mode"
+          />
+          <label htmlFor="max-mode-toggle" className="select-none text-xs">
+            Max
+          </label>
+        </div>
+      )}
+      <div className="bg-border mx-2 h-6 w-px" />
+      {typeof onToneHarmonize === "function" && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onToneHarmonize}
+          title="Run Tone Harmonizer"
+        >
+          Tone
+        </Button>
+      )}
+      {typeof onFindCitations === "function" && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onFindCitations}
+          title="Find Relevant Citations"
+          disabled={findingCitations}
+        >
+          {findingCitations ? "…" : "Cite"}
+        </Button>
+      )}
+      {typeof onCreateSlideDeck === "function" && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onCreateSlideDeck}
+          title="Create Slide Deck"
+          disabled={creatingSlideDeck}
+        >
+          {creatingSlideDeck ? "…" : "Slide"}
+        </Button>
+      )}
     </div>
   )
 }

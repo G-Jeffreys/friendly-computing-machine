@@ -26,7 +26,7 @@ Configures the TypeScript compiler options for the app.
     "paths": {
       "@/*": ["./*"]
     },
-    "target": "ES2017"
+    "target": "ES2022"
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

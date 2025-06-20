@@ -235,8 +235,6 @@ It uses Postgres, Supabase, Drizzle ORM, and Server Actions.
 
 #### General Rules
 
-- Never generate migrations. You do not have to do anything in the `db/migrations` folder inluding migrations and metadata. Ignore it.
-
 #### Organization
 
 #### Schemas

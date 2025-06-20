@@ -17,6 +17,8 @@ interface SuggestionSidebarProps {
   readability: number | null
   stats: Stats | null
   onApplySuggestion: (sg: Suggestion, replacement: string) => void
+  /** Optional handler for "Add to Dictionary" (only for spell suggestions) */
+  onAddToDictionary?: (word: string) => void
 }
 
 /**
@@ -28,7 +30,8 @@ function SuggestionSidebar({
   plainText,
   readability,
   stats,
-  onApplySuggestion
+  onApplySuggestion,
+  onAddToDictionary
 }: SuggestionSidebarProps) {
   console.log(
     "[SuggestionSidebar] render – total suggestions:",
@@ -48,6 +51,13 @@ function SuggestionSidebar({
         suggestions.map(sg => (
           <div key={sg.id} className="rounded border p-2 text-sm">
             <p>
+              {/*
+                LanguageTool & write-good operate on a version of the text
+                without newline characters.  The `plainText` we receive
+                from TipTap *does* include newlines between paragraphs,
+                which causes offsets to drift after the first paragraph.
+                Strip them here so the substring aligns perfectly.
+              */}
               <span
                 className={
                   sg.type === "spell"
@@ -57,7 +67,7 @@ function SuggestionSidebar({
                       : "text-purple-600"
                 }
               >
-                {plainText.substring(sg.offset, sg.offset + sg.length)}
+                {plainText.replace(/\n+/g, " ").substring(sg.offset, sg.offset + sg.length)}
               </span>
               : {sg.message}
             </p>
@@ -74,6 +84,21 @@ function SuggestionSidebar({
                   </Button>
                 ))}
               </div>
+            )}
+
+            {sg.type === "spell" && onAddToDictionary && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-1 text-xs underline"
+                onClick={() =>
+                  onAddToDictionary(
+                    plainText.substring(sg.offset, sg.offset + sg.length)
+                  )
+                }
+              >
+                Add to Dictionary
+              </Button>
             )}
           </div>
         ))
