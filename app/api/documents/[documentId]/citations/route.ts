@@ -5,13 +5,27 @@ import { Redis } from "@upstash/redis"
 import { getDocumentByIdAction } from "@/actions/db/documents-actions"
 import { citationHunterAction } from "@/actions/ai/citation-hunter-action"
 
-// Create a new ratelimiter, that allows 5 requests per 1 minute
-const ratelimit = new Ratelimit({
-  redis: Redis.fromEnv(),
-  limiter: Ratelimit.slidingWindow(5, "1 m"),
-  analytics: true,
-  prefix: "@upstash/ratelimit"
-})
+// Create a new ratelimiter (5 req / 1 min) only if Upstash Redis is configured.
+let ratelimit: Ratelimit | null = null
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  try {
+    ratelimit = new Ratelimit({
+      redis: Redis.fromEnv(),
+      limiter: Ratelimit.slidingWindow(5, "1 m"),
+      analytics: true,
+      prefix: "@upstash/ratelimit"
+    })
+  } catch (e) {
+    console.warn(
+      "[API] citations ratelimit disabled – Redis initialization failed.",
+      e
+    )
+  }
+} else {
+  console.warn(
+    "[API] citations ratelimit disabled – UPSTASH_REDIS_* env vars not found."
+  )
+}
 
 export async function POST(
   request: Request,
@@ -24,12 +38,14 @@ export async function POST(
     }
 
     // Rate limit by userId
-    const { success } = await ratelimit.limit(userId)
-    if (!success) {
-      return NextResponse.json(
-        { message: "Rate limit exceeded – please wait and try again." },
-        { status: 429 }
-      )
+    if (ratelimit) {
+      const { success } = await ratelimit.limit(userId)
+      if (!success) {
+        return NextResponse.json(
+          { message: "Rate limit exceeded – please wait and try again." },
+          { status: 429 }
+        )
+      }
     }
 
     const { documentId } = await params

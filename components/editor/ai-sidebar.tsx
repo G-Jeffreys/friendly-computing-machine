@@ -134,6 +134,9 @@ function AiSidebar({
                 <p className="text-xs italic text-muted-foreground">
                   {c.journal}
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  2-yr mean citedness: {c.citedness.toFixed(2)}
+                </p>
                 <div className="mt-2 flex gap-2">
                   <Button
                     size="sm"

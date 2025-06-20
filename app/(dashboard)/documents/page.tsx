@@ -4,7 +4,7 @@ import { getDocumentsAction } from "@/actions/db/documents-actions"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { auth } from "@clerk/nextjs/server"
-import SignInCTA from "@/app/documents/_components/sign-in-cta"
+import SignInCTA from "@/app/(dashboard)/documents/_components/sign-in-cta"
 
 export default async function DocumentsPage() {
   const { userId } = await auth()
