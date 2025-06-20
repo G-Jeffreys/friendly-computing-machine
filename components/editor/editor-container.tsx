@@ -33,7 +33,6 @@ import type { CitationEntry } from "@/actions/ai/citation-hunter-action"
 
 // Extracted UI components
 import EditorToolbar from "./editor-toolbar"
-import ResearchAssistantSidebar from "./research-assistant-sidebar"
 import SuggestionSidebar from "./suggestion-sidebar"
 import {
   Dialog,
@@ -787,29 +786,36 @@ export default function EditorContainer({
 
   /* ------------------ Find citations ------------------ */
   const handleFindCitations = async () => {
-    if (demoMode && plainText.split(/\s+/).length > DEMO_WORD_LIMIT) {
-      setFindingCitations(true)
-      setActiveTab("citations")
-      try {
-        const res = await fetch(
-          `/api/documents/${initialDocument.id}/citations`,
-          { method: "POST" }
-        )
-        const json = await res.json()
-        if (json.isSuccess) {
-          setCitations(json.data)
-        } else {
-          toast({
-            title: json.message || "Citation hunter failed",
-            variant: "destructive"
-          })
-        }
-      } catch (e) {
-        console.error("[EditorContainer] handleFindCitations", e)
-        toast({ title: "Server error", variant: "destructive" })
-      } finally {
-        setFindingCitations(false)
+    const wordCount = plainText.split(/\s+/).length
+    if (demoMode && wordCount > DEMO_WORD_LIMIT) {
+      toast({
+        title: "Demo limit reached",
+        description: `Citations limited to ${DEMO_WORD_LIMIT} words in demo mode.`
+      })
+      return
+    }
+
+    setFindingCitations(true)
+    setActiveTab("citations")
+    try {
+      const res = await fetch(
+        `/api/documents/${initialDocument.id}/citations`,
+        { method: "POST" }
+      )
+      const json = await res.json()
+      if (json.isSuccess) {
+        setCitations(json.data)
+      } else {
+        toast({
+          title: json.message || "Citation hunter failed",
+          variant: "destructive"
+        })
       }
+    } catch (e) {
+      console.error("[EditorContainer] handleFindCitations", e)
+      toast({ title: "Server error", variant: "destructive" })
+    } finally {
+      setFindingCitations(false)
     }
   }
 
@@ -971,11 +977,6 @@ export default function EditorContainer({
         )}
       </div>
       <div className="hidden h-full flex-col border-l lg:flex">
-        <ResearchAssistantSidebar
-          editor={editor}
-          documentText={plainText}
-          onRunAnalysis={handleRunAssistant}
-        />
         <SuggestionSidebar
           suggestions={suggestions}
           plainText={plainText}
@@ -983,6 +984,17 @@ export default function EditorContainer({
           stats={stats}
           onApplySuggestion={applySuggestion}
           onAddToDictionary={handleAddToDictionary}
+          toneSuggestions={toneSuggestions}
+          onAcceptToneSuggestion={applyToneSuggestion}
+          citations={citations}
+          findingCitations={findingCitations}
+          slideDeck={slideDeck}
+          onCreateSlideDeck={handleCreateSlideDeck}
+          creatingSlideDeck={creatingSlide}
+          onGenerateTone={handleToneHarmonize}
+          generatingTone={isHarmonizing}
+          onGenerateCitations={handleFindCitations}
+          generatingCitations={findingCitations}
         />
       </div>
       {/* Demo Word Count Limiter Modal */}

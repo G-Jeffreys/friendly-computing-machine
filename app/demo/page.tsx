@@ -1,6 +1,6 @@
 "use server"
 
-import DocumentEditorLazy from "@/app/documents/[documentId]/_components/document-editor-lazy"
+import DocumentEditorLazy from "@/app/(dashboard)/documents/[documentId]/_components/document-editor-lazy"
 import type { SelectDocument } from "@/db/schema/documents-schema"
 
 export default async function DemoPage() {

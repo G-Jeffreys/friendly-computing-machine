@@ -15,7 +15,20 @@ interface KeywordResult {
   keywords: string[]
 }
 
-const redis = Redis.fromEnv()
+// Initialize Upstash Redis only if the required environment variables exist.
+let redis: Redis | null = null
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  try {
+    redis = Redis.fromEnv()
+  } catch (e) {
+    // If Redis fails to initialize (e.g. malformed URL), continue without caching.
+    console.warn("[citationHunterAction] Redis unavailable – caching disabled.", e)
+  }
+} else {
+  console.warn(
+    "[citationHunterAction] UPSTASH_REDIS_* env vars not found – caching disabled."
+  )
+}
 
 /**
  * citationHunterAction – extracts keywords via LLM then queries OpenAlex API
@@ -45,7 +58,7 @@ export async function citationHunterAction(
 
     for (const kw of keywords) {
       // Check cache first
-      const cached = await redis.get<CitationEntry[]>(`citation:${kw}`)
+      const cached = await redis?.get<CitationEntry[]>(`citation:${kw}`)
       if (cached) {
         console.log("[citationHunterAction] cache hit", kw)
         citations.push(...cached)
@@ -78,7 +91,7 @@ export async function citationHunterAction(
 
       // Cache for 1 day
       if (list.length > 0) {
-        await redis.set(`citation:${kw}`, JSON.stringify(list), { ex: 86400 })
+        await redis?.set(`citation:${kw}`, JSON.stringify(list), { ex: 86400 })
       }
       citations.push(...list)
     }

@@ -1,7 +1,7 @@
 "use server"
 
 import Header from "@/components/header"
-import DocumentsSidebar from "./_components/documents-sidebar"
+import DocumentsSidebar from "@/components/layout/docs-sidebar"
 
 export default async function DocumentsLayout({
   children

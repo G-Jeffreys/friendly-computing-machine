@@ -153,38 +153,7 @@ function EditorToolbar({
         </div>
       )}
       <div className="bg-border mx-2 h-6 w-px" />
-      {typeof onToneHarmonize === "function" && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onToneHarmonize}
-          title="Run Tone Harmonizer"
-        >
-          Tone
-        </Button>
-      )}
-      {typeof onFindCitations === "function" && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onFindCitations}
-          title="Find Relevant Citations"
-          disabled={findingCitations}
-        >
-          {findingCitations ? "…" : "Cite"}
-        </Button>
-      )}
-      {typeof onCreateSlideDeck === "function" && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onCreateSlideDeck}
-          title="Create Slide Deck"
-          disabled={creatingSlideDeck}
-        >
-          {creatingSlideDeck ? "…" : "Slide"}
-        </Button>
-      )}
+      {/* Action buttons removed – functionality now inside sidebar accordions */}
     </div>
   )
 }
