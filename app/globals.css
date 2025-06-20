@@ -95,3 +95,40 @@ Global styles for the app.
     @apply bg-background text-foreground font-sans;
   }
 }
+
+.new-document-highlight .ProseMirror {
+  animation: halo-effect 1.5s ease-out;
+  border-color: hsl(var(--primary));
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+@keyframes halo-effect {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 10px hsl(var(--primary) / 0);
+  }
+}
+
+.paginated-editor-area {
+  height: calc(100vh - 250px); /* Adjust as needed */
+  overflow-y: auto;
+  border: 1px solid hsl(var(--border));
+  padding: 1rem;
+}
+
+.paginated-editor-area .ProseMirror {
+  background: linear-gradient(to bottom, transparent 1049px, hsl(var(--border)) 1049px, hsl(var(--border)) 1050px);
+  background-size: 100% 1050px; /* A4 paper height in pixels at 96 DPI is ~1122, leaving room for padding */
+  padding: 2rem 4rem; /* Simulate margins */
+}
+
+.page-counter {
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  border-top: 1px solid hsl(var(--border));
+}

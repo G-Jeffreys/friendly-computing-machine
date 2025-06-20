@@ -33,7 +33,8 @@ import type { CitationEntry } from "@/actions/ai/citation-hunter-action"
 
 // Extracted UI components
 import EditorToolbar from "./editor-toolbar"
-import AiSidebar from "./ai-sidebar"
+import ResearchAssistantSidebar from "./research-assistant-sidebar"
+import SuggestionSidebar from "./suggestion-sidebar"
 import {
   Dialog,
   DialogContent,
@@ -75,7 +76,11 @@ export default function EditorContainer({
   demoMode = false
 }: EditorContainerProps) {
   /* ------------------------------ State hooks ------------------------------ */
+  const editorViewRef = useRef<HTMLDivElement>(null)
+  const [pageCount, setPageCount] = useState(1)
+  const [currentPage, setCurrentPage] = useState(1)
   const [title, setTitle] = useState(initialDocument.title)
+  const [isNewDocument, setIsNewDocument] = useState(false)
   const [maxMode, setMaxMode] = useState<boolean>(
     // Fallback to false when property missing for legacy docs
     // @ts-ignore – initialDocument may not yet include maxMode in older types
@@ -139,6 +144,15 @@ export default function EditorContainer({
   const [content, setContent] = useState(initialHtml)
   const [plainText, setPlainText] = useState<string>("")
 
+  useEffect(() => {
+    if (
+      !initialDocument.content ||
+      initialDocument.content.replace(/<p><\/p>/g, "").trim() === ""
+    ) {
+      setIsNewDocument(true)
+    }
+  }, [initialDocument.content])
+
   const handleSelection = (editor: TipTapEditor) => {
     if (definitionTimerRef.current) {
       clearTimeout(definitionTimerRef.current)
@@ -166,6 +180,31 @@ export default function EditorContainer({
     demoMode,
     updatedAt: updatedAtToken
   })
+
+  /* ------------------------------ Pagination Logic ----------------------------- */
+  const PAGE_HEIGHT_PX = 1050 // Corresponds to the CSS value
+
+  const updatePageCount = useCallback(() => {
+    const editorView = editorViewRef.current
+    if (editorView) {
+      const totalHeight = editorView.scrollHeight
+      const count = Math.max(1, Math.ceil(totalHeight / PAGE_HEIGHT_PX))
+      setPageCount(count)
+    }
+  }, [])
+
+  const updateCurrentPage = useCallback(() => {
+    const editorView = editorViewRef.current
+    if (editorView) {
+      const scrollTop = editorView.scrollTop
+      const page = Math.max(1, Math.floor(scrollTop / PAGE_HEIGHT_PX) + 1)
+      setCurrentPage(page)
+    }
+  }, [])
+
+  useEffect(() => {
+    updatePageCount()
+  }, [plainText, updatePageCount])
 
   /* ------------------ Suggestion highlight Decoration plugin -------------- */
   // Extend Suggestion with live ProseMirror positions so we can keep them
@@ -369,10 +408,13 @@ export default function EditorContainer({
     ],
     content: content,
     onUpdate: ({ editor }) => {
+      if (isNewDocument) {
+        setIsNewDocument(false)
+      }
       const html = editor.getHTML()
-      setContent(html) // Keep content state in sync for autosave
+      setContent(html)
       const text = editor.getText()
-      setPlainText(text) // For other features
+      setPlainText(text)
 
       /* -------- Demo mode word / time limiter -------- */
       if (demoMode) {
@@ -402,10 +444,16 @@ export default function EditorContainer({
     },
     editorProps: {
       attributes: {
-        class: "prose dark:prose-invert max-h-[60vh] min-h-[50vh] overflow-auto p-4 focus:outline-none"
+        class: "prose dark:prose-invert focus:outline-none"
       }
     }
   })
+
+  useEffect(() => {
+    if (editor) {
+      runChecks() // Initial check
+    }
+  }, [editor])
 
   /* ------------------------------ Handlers ------------------------------ */
   const handleSave = () => {
@@ -829,53 +877,84 @@ export default function EditorContainer({
     editor.chain().focus().insertContent(formatted).run()
   }
 
+  const handleRunAssistant = async () => {
+    const res = await fetch(`/api/research-assistant`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: plainText })
+    })
+    const json = await res.json()
+    if (!json.isSuccess) {
+      toast({
+        title: "Analysis Failed",
+        description: json.message,
+        variant: "destructive"
+      })
+    }
+    return json.data
+  }
+
   /* ------------------------------ Render ------------------------------ */
   return (
-    <div className="space-y-4">
-      {!demoMode && (
-        <div>
-          <Link
-            href="/documents"
-            className="text-sm text-blue-600 hover:underline"
-          >
-            &larr; Back to Documents
-          </Link>
-        </div>
-      )}
-
-      {/* Title input */}
-      <input
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        className="w-full border-b text-2xl font-semibold focus:outline-none"
-      />
-
-      <div className="flex gap-6">
-        {/* Rich text editor */}
-        <div
-          onClick={() => {
-            if (editor && !editor.isFocused) {
-              editor.chain().focus().run()
-            }
-          }}
-          onBlur={() => handleSave()}
-          className="relative flex-1"
-        >
-          <EditorToolbar
-            editor={editor}
-            onToneHarmonize={handleToneHarmonize}
-            onFindCitations={handleFindCitations}
-            findingCitations={findingCitations}
-            onCreateSlideDeck={handleCreateSlideDeck}
-            creatingSlideDeck={creatingSlide}
+    <div className="flex h-full w-full">
+      <div
+        className="relative flex flex-1 flex-col"
+        onClick={() => {
+          if (editor && !editor.isFocused) {
+            editor.chain().focus().run()
+          }
+        }}
+      >
+        <div className="flex items-center justify-between border-b p-2 px-4">
+          <input
+            type="text"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            className="w-1/2 bg-transparent text-lg font-semibold outline-none"
+            placeholder="Untitled Document"
           />
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              {secondsSinceLastSave < 5
+                ? "Saved just now"
+                : `Last saved ${Math.round(secondsSinceLastSave)}s ago`}
+            </p>
+            <Button onClick={handleSave} size="sm">
+              Save
+            </Button>
+            <Button onClick={handleDelete} size="sm" variant="destructive">
+              Delete
+            </Button>
+          </div>
+        </div>
+        <EditorToolbar
+          editor={editor}
+          maxMode={maxMode}
+          onToggleMaxMode={setMaxMode}
+          onToneHarmonize={handleToneHarmonize}
+          onFindCitations={handleFindCitations}
+          findingCitations={findingCitations}
+          onCreateSlideDeck={handleCreateSlideDeck}
+          creatingSlideDeck={creatingSlide}
+        />
+        <div
+          ref={editorViewRef}
+          onScroll={updateCurrentPage}
+          className={`paginated-editor-area relative h-full flex-1 ${
+            isNewDocument ? "new-document-highlight" : ""
+          }`}
+        >
           <EditorContent editor={editor} />
+        </div>
+        <div className="page-counter">
+          Page {currentPage} of {pageCount}
         </div>
 
         {definition && (
           <div
             ref={definitionPopupRef}
             className="absolute z-10 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95"
+            style={{ position: "absolute" }}
           >
             <h4 className="font-bold">{definition.term}</h4>
             <p className="text-sm">{definition.definition}</p>
@@ -891,88 +970,38 @@ export default function EditorContainer({
             </div>
           </div>
         )}
-
-        {/* AI Sidebar with multiple features */}
-        <AiSidebar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
+      </div>
+      <div className="hidden h-full flex-col border-l lg:flex">
+        <ResearchAssistantSidebar
+          editor={editor}
+          documentText={plainText}
+          onRunAnalysis={handleRunAssistant}
+        />
+        <SuggestionSidebar
           suggestions={suggestions}
           plainText={plainText}
           readability={readability}
           stats={stats}
           onApplySuggestion={applySuggestion}
           onAddToDictionary={handleAddToDictionary}
-          toneSuggestions={toneSuggestions}
-          onAcceptToneSuggestion={applyToneSuggestion}
-          citations={citations}
-          onInsertCitation={handleInsertCitation}
-          findingCitations={findingCitations}
-          slideDeck={slideDeck}
-          slideDeckHistory={slideDeckHistory}
-          onCreateSlideDeck={handleCreateSlideDeck}
-          creatingSlideDeck={creatingSlide}
-          definitions={[]}
         />
       </div>
-
-      {/* Save / Delete + Autosave timer */}
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={isPending}>
-            {isPending ? "Saving..." : "Save"}
-          </Button>
-          <Button
-            onClick={handleDelete}
-            disabled={isPending}
-            variant="destructive"
-          >
-            {isPending ? "Please wait..." : "Delete"}
-          </Button>
-        </div>
-
-        {!demoMode && (
-          <p className="text-muted-foreground text-sm sm:ml-4">
-            {secondsSinceLastSave} seconds since last autosave
-          </p>
-        )}
-      </div>
-
-      {/* Demo overlay */}
-      {demoMode && <OverlayModal open={demoBlocked} />}
-
-      {/* Slide Deck Modal */}
-      {slideModalOpen && (
-        <Dialog open={slideModalOpen} onOpenChange={setSlideModalOpen}>
-          <DialogContent className="max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Slide Deck Outline</DialogTitle>
-              <DialogDescription>
-                Bullet points generated – copy as needed.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="prose dark:prose-invert max-h-[60vh] overflow-auto">
-              <ol>
-                {slideDeck.map((p, i) => (
-                  <li key={i}>{p.text}</li>
-                ))}
-              </ol>
-            </div>
-            <DialogFooter>
-              <Button
-                onClick={() => {
-                  const text = slideDeck
-                    .map((p, i) => `${i + 1}. ${p.text}`)
-                    .join("\n")
-                  navigator.clipboard.writeText(text)
-                  toast({ title: "Copied to clipboard" })
-                }}
-              >
-                Copy
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Demo Word Count Limiter Modal */}
+      <Dialog open={demoBlocked} onOpenChange={setDemoBlocked}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Demo Mode</DialogTitle>
+            <DialogDescription>
+              This is a demo version with a limited number of words.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button asChild>
+              <Link href="/sign-up">Sign Up to Remove Limits</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
