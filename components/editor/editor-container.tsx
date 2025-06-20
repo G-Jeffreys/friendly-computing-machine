@@ -109,6 +109,7 @@ export default function EditorContainer({
 
   /* ------------------- Citations ------------------- */
   const [citations, setCitations] = useState<CitationEntry[]>([])
+  const [citationKeywords, setCitationKeywords] = useState<string[]>([])
   const [findingCitations, setFindingCitations] = useState(false)
 
   /* ------------------- Slide Decker ------------------- */
@@ -804,7 +805,8 @@ export default function EditorContainer({
       )
       const json = await res.json()
       if (json.isSuccess) {
-        setCitations(json.data)
+        setCitations(json.data.citations)
+        setCitationKeywords(json.data.keywords)
       } else {
         toast({
           title: json.message || "Citation hunter failed",
@@ -995,6 +997,7 @@ export default function EditorContainer({
           generatingTone={isHarmonizing}
           onGenerateCitations={handleFindCitations}
           generatingCitations={findingCitations}
+          citationKeywords={citationKeywords}
         />
       </div>
       {/* Demo Word Count Limiter Modal */}

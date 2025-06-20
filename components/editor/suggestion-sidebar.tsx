@@ -35,6 +35,7 @@ interface SuggestionSidebarProps {
   /* ---------------- Citations ----------- */
   citations?: CitationEntry[]
   findingCitations?: boolean
+  citationKeywords?: string[]
 
   /* ---------------- Slide Deck ---------- */
   slideDeck?: { text: string }[]
@@ -63,6 +64,7 @@ function SuggestionSidebar({
   onAcceptToneSuggestion,
   citations = [],
   findingCitations = false,
+  citationKeywords = [],
   slideDeck = [],
   onCreateSlideDeck,
   creatingSlideDeck = false,
@@ -141,6 +143,35 @@ function SuggestionSidebar({
       </ScrollArea>
     )
 
+  const citationSection = (
+    generatingCitations || findingCitations ? (
+      <p className="text-sm text-muted-foreground">Searching…</p>
+    ) : citations.length === 0 ? (
+      <p className="text-sm text-muted-foreground">No citations found</p>
+    ) : (
+      <>
+        {citationKeywords.length > 0 && (
+          <p className="mb-2 text-xs text-muted-foreground">Keywords: {citationKeywords.join(", ")}</p>
+        )}
+        <ul className="space-y-4 text-sm">
+          {citations.map((c, i) => (
+            <li key={i} className="border-b pb-2">
+              <p className="font-bold">{c.title}</p>
+              <p className="text-muted-foreground">{c.authors}</p>
+              <p className="text-xs italic text-muted-foreground">{c.journal}</p>
+              <p className="text-xs text-muted-foreground">2-yr mean citedness: {c.citedness.toFixed(2)}</p>
+              {c.url && (
+                <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-xs underline">
+                  Source
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  )
+
   return (
     <aside className="w-72 max-h-screen overflow-auto border-l bg-background p-4">
       <Accordion type="multiple" className="space-y-2" defaultValue={["spell", "readability"]}>
@@ -197,26 +228,7 @@ function SuggestionSidebar({
         <AccordionItem value="citations">
           <AccordionTrigger>Citation Suggestions</AccordionTrigger>
           <AccordionContent>
-            {generatingCitations || findingCitations ? (
-              <p className="text-sm text-muted-foreground">Searching…</p>
-            ) : citations.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No citations found</p>
-            ) : (
-              <ul className="space-y-4 text-sm">
-                {citations.map((c, i) => (
-                  <li key={i} className="border-b pb-2">
-                    <p className="font-bold">{c.title}</p>
-                    <p className="text-muted-foreground">{c.authors}</p>
-                    <p className="text-xs italic text-muted-foreground">{c.journal}</p>
-                    {c.url && (
-                      <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-xs underline">
-                        Source
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+            {citationSection}
             {citations.length === 0 && (
               <Button size="sm" onClick={onGenerateCitations} disabled={generatingCitations || findingCitations} className="mt-2">
                 {generatingCitations || findingCitations ? "Generating…" : "Generate"}
