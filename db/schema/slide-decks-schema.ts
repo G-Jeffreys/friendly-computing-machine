@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core"
+import { relations } from "drizzle-orm"
 import { documentsTable } from "./documents-schema"
 
 /**
@@ -20,6 +21,13 @@ export const slideDecksTable = pgTable("slide_decks", {
   /** Timestamp */
   createdAt: timestamp("created_at").defaultNow().notNull()
 })
+
+export const slideDecksRelations = relations(slideDecksTable, ({ one }) => ({
+  document: one(documentsTable, {
+    fields: [slideDecksTable.documentId],
+    references: [documentsTable.id]
+  })
+}))
 
 export type InsertSlideDeck = typeof slideDecksTable.$inferInsert
 export type SelectSlideDeck = typeof slideDecksTable.$inferSelect

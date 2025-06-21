@@ -4,11 +4,17 @@ import { slideDecksTable } from "@/db/schema"
 import { eq } from "drizzle-orm"
 import { notFound } from "next/navigation"
 
-export default async function SlidePage({ params }: { params: { slideId: string } }) {
+export default async function SlidePage({
+  params
+}: {
+  params: Promise<{ slideId: string }>
+}) {
+  const { slideId } = await params
+
   const [deck] = await db
     .select()
     .from(slideDecksTable)
-    .where(eq(slideDecksTable.id, params.slideId))
+    .where(eq(slideDecksTable.id, slideId))
     .limit(1)
 
   if (!deck) {
