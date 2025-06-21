@@ -18,6 +18,7 @@
     "prepare": "husky install",
     "test": "jest --passWithNoTests",
     "e2e": "playwright test",
+    "build:sjr": "node scripts/generate-sjr-json.js",
     "tailwind:check": "echo \"[tailwind:check] Verifying Tailwind build...\" && tailwindcss --minify --input app/globals.css --output tailwind-build.css && echo \"[tailwind:check] Tailwind compilation successful\""
   },
   "dependencies": {
@@ -96,6 +97,7 @@
     "@types/node": "20.19.1",
     "@types/react": "19.1.8",
     "@types/react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0",
+    "csv-parse": "^5.6.0",
     "dotenv": "^16.4.5",
     "drizzle-kit": "^0.31.1",
     "eslint": "^8",

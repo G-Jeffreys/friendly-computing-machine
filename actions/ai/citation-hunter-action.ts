@@ -3,13 +3,18 @@
 import { Redis } from "@upstash/redis"
 import { callLLM } from "@/lib/ai/llm-server"
 import { ActionState } from "@/types"
+// @ts-ignore - JSON module default import provides object map
+import SJR_DATA from "@/lib/data/sjr_2024.json"
+
+const SJR_LOOKUP: Record<string, number> = SJR_DATA as Record<string, number>
 
 export interface CitationEntry {
   title: string
   authors: string
   journal: string
   url: string
-  citedness: number
+  /** 2024 SJR score for the journal this work is published in. */
+  sjr: number
 }
 
 // ---------------- NEW TYPES ----------------
@@ -123,13 +128,43 @@ export async function citationHunterAction(
           work.primary_location?.landing_page_url ??
           work.doi_url ??
           "",
-        citedness:
-          work.summary_stats?.["2yr_mean_citedness"] ?? work["2yr_mean_citedness"] ?? 0
+        sjr: 0
       }))
 
-      // Sort by citedness desc and take top 5
+      // ----------------- NEW: Assign SJR via local lookup -----------------
+      console.log(
+        `[citationHunterAction] Using precompiled SJR lookup with ${Object.keys(
+          SJR_LOOKUP
+        ).length} journals`
+      )
+
+      const normaliseIssn = (raw: string): string => raw.replace(/[-\s]/g, "").toLowerCase()
+
+      list.forEach((entry, idx) => {
+        const work = json.results[idx]
+        // Prefer ISSN_L, fallback to first ISSN in array
+        const rawIssn: string | undefined =
+          work.host_venue?.issn_l ??
+          (Array.isArray(work.host_venue?.issn) && work.host_venue.issn.length > 0
+            ? work.host_venue.issn[0]
+            : undefined) ??
+          work.primary_location?.source?.issn_l ??
+          (Array.isArray(work.primary_location?.source?.issn) &&
+          work.primary_location.source.issn.length > 0
+            ? work.primary_location.source.issn[0]
+            : undefined)
+
+        if (!rawIssn) return
+        const norm = normaliseIssn(rawIssn)
+        entry.sjr = SJR_LOOKUP[norm] ?? 0
+        console.log(
+          `[citationHunterAction] ISSN ${rawIssn} (norm ${norm}) -> SJR ${entry.sjr}`
+        )
+      })
+
+      // ----------------- Sort & cache -----------------
       const top: CitationEntry[] = list
-        .sort((a: CitationEntry, b: CitationEntry) => b.citedness - a.citedness)
+        .sort((a: CitationEntry, b: CitationEntry) => b.sjr - a.sjr)
         .slice(0, 5)
 
       if (top.length > 0) {

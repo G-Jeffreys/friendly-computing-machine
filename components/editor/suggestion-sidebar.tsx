@@ -159,7 +159,7 @@ function SuggestionSidebar({
               <p className="font-bold">{c.title}</p>
               <p className="text-muted-foreground">{c.authors}</p>
               <p className="text-xs italic text-muted-foreground">{c.journal}</p>
-              <p className="text-xs text-muted-foreground">2-yr mean citedness: {c.citedness.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">SJR (2024): {c.sjr.toFixed(3)}</p>
               {c.url && (
                 <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-xs underline">
                   Source
