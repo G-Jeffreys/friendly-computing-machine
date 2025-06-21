@@ -57,7 +57,7 @@ interface AiSidebarProps {
   findingCitations: boolean
   slideDeck: { text: string }[]
   slideDeckHistory: SlideDeckHistoryEntry[]
-  onCreateSlideDeck: (minutes: number) => void
+  onCreateSlideDeck: () => void
   creatingSlideDeck: boolean
 }
 
@@ -135,7 +135,7 @@ function AiSidebar({
                   {c.journal}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  2-yr mean citedness: {c.citedness.toFixed(2)}
+                  SJR (2024): {c.sjr.toFixed(3)}
                 </p>
                 <div className="mt-2 flex gap-2">
                   <Button
@@ -217,8 +217,8 @@ function AiSidebar({
       <div className="p-4">
         <h3 className="mb-2 font-semibold">Slide Deck</h3>
         <div className="mb-4">
-          <Button onClick={() => onCreateSlideDeck(10)}>
-            {creatingSlideDeck ? "Generating..." : "Generate New (10 min)"}
+          <Button onClick={onCreateSlideDeck}>
+            {creatingSlideDeck ? "Generating..." : "Generate"}
           </Button>
         </div>
         {slideDecks.length > 0 && (
@@ -251,15 +251,20 @@ function AiSidebar({
           </div>
         )}
         {points.length > 0 && (
-          <ScrollArea className="mt-4 h-72">
-            <ul className="space-y-2 text-sm">
-              {points.map((p, i) => (
-                <li key={i} className="leading-tight">
-                  {p.text}
-                </li>
-              ))}
-            </ul>
-          </ScrollArea>
+          <>
+            <p className="text-xs text-muted-foreground mb-2">
+              Length: {points.length} minutes
+            </p>
+            <ScrollArea className="mt-2 h-72">
+              <ul className="space-y-2 text-sm">
+                {points.map((p, i) => (
+                  <li key={i} className="leading-tight">
+                    {p.text}
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
+          </>
         )}
       </div>
     )

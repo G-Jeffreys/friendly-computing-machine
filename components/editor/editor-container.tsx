@@ -247,29 +247,40 @@ export default function EditorContainer({
     return { analysisText: text, charPositions: positions }
   }
 
-  const runChecks = async () => {
-    if (!editor) return
+  /* ---------------------- Editor refs & analysis utilities ---------------------- */
+  // Keep the latest editor instance in a ref so callbacks don't close over a
+  // stale value.
+  const editorRef = useRef<TipTapEditor | null>(null)
+
+  /**
+   * Executes spell-, grammar- and style-checks via the Web-Worker analyser,
+   * then updates sidebar state and inline decorations accordingly.
+   */
+  const runChecks = useCallback(async () => {
+    const currentEditor = editorRef.current
+    if (!currentEditor) return
+
     const { analysisText, charPositions } = buildAnalysisTextAndPositions(
-      editor.state.doc
+      currentEditor.state.doc
     )
     charPositionsRef.current = charPositions
 
     try {
       const result = await analyse(analysisText)
+
       const newSuggestions = result.suggestions.map(s => ({
         ...s,
         offset: s.offset,
         length: s.length
       }))
+
       setSuggestions(newSuggestions)
       suggestionsRef.current = newSuggestions.map(s => s as PosSuggestion)
 
-      // rebuild decorations
-      if (editor) {
-        editor.view.dispatch(
-          editor.view.state.tr.setMeta(decorationKey, true)
-        )
-      }
+      // Rebuild decorations so highlights stay in sync with the document.
+      currentEditor.view.dispatch(
+        currentEditor.view.state.tr.setMeta(decorationKey, true)
+      )
 
       setReadability(result.score)
       setStats({
@@ -278,14 +289,16 @@ export default function EditorContainer({
         avgWordLength: result.avgWordLength,
         readingTimeMinutes: result.readingTimeMinutes
       })
-    } catch (e) {
-      console.error("[EditorContainer] runChecks", e)
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[EditorContainer] runChecks", err)
     }
-  }
+  }, [analyse, decorationKey])
 
-  /* ------------------- Debounced analysis helper ------------------ */
-  const debouncedRunChecks = useCallback(debounce(runChecks, 1000), []) // 1s debounce
+  // Debounced wrapper so we don't hammer the analyser while typing.
+  const debouncedRunChecks = useMemo(() => debounce(runChecks, 1000), [runChecks])
 
+  /* ---------------------- Suggestion highlight decoration ---------------------- */
   const createSuggestionPlugin = useCallback(() => {
     const buildDecorations = (doc: any) => {
       const decos: any[] = []
@@ -302,23 +315,15 @@ export default function EditorContainer({
       suggestionsRef.current.forEach(sg => {
         const startIndex = sg.offset
         const endIndex = sg.offset + sg.length - 1
-        if (
-          startIndex >= charPositions.length ||
-          endIndex >= charPositions.length
-        ) {
-          return // suggestion is out of bounds
-        }
+        if (startIndex >= charPositions.length || endIndex >= charPositions.length) return
+
         const from = charPositions[startIndex]
         const to = charPositions[endIndex] + 1 // inclusive
+
         if (from && to) {
-          // Persist live positions on the suggestion object so we can map
-          // them through future transactions and also use them when the
-          // user accepts the suggestion.
           ;(sg as PosSuggestion).from = from
           ;(sg as PosSuggestion).to = to
-          decos.push(
-            Decoration.inline(from, to, { class: colorClass(sg.type) })
-          )
+          decos.push(Decoration.inline(from, to, { class: colorClass(sg.type) }))
         }
       })
 
@@ -330,44 +335,20 @@ export default function EditorContainer({
       state: {
         init: (_: any, { doc }: any) => buildDecorations(doc),
         apply: (tr: any, old: any) => {
-          // ------------------------------------------------------------
-          // ProseMirror automatically maps decoration positions through
-          // document changes when we call `old.map(tr.mapping, tr.doc)`.
-          // We therefore only want to rebuild the entire decoration set
-          // **when the underlying suggestions list changes** – identified
-          // via a metadata flag we dispatch elsewhere. This prevents the
-          // highlight positions from "drifting" out of sync when the user
-          // edits the document before the expensive analysis runs again.
-          // ------------------------------------------------------------
-          // If suggestions were refreshed (flagged via setMeta) rebuild
-          // the decoration set from scratch.
           if (tr.getMeta(decorationKey)) {
             return buildDecorations(tr.doc)
           }
-          // Otherwise just map the existing decorations through the
-          // transaction so they stay aligned with any insertions /
-          // deletions the user makes.
 
-          // First map the highlight decorations.
           const mapped = old.map(tr.mapping, tr.doc)
 
-          // Next map the stored suggestion positions & recompute offset so
-          // the sidebar text stays in sync.
+          // Keep stored suggestion positions & offsets in sync.
           const charPositionsCurr = charPositionsRef.current
           if (charPositionsCurr) {
             suggestionsRef.current.forEach(sg => {
-              if (sg.from !== undefined) {
-                sg.from = tr.mapping.map(sg.from)
-              }
-              if (sg.to !== undefined) {
-                sg.to = tr.mapping.map(sg.to, -1)
-              }
+              if (sg.from !== undefined) sg.from = tr.mapping.map(sg.from)
+              if (sg.to !== undefined) sg.to = tr.mapping.map(sg.to, -1)
 
               if (sg.from !== undefined) {
-                // Use `lastIndexOf` because the same doc position can appear
-                // twice in `charPositions` (once for the real character and
-                // once for the synthetic space between paragraphs). We want
-                // the later index to keep offsets in sync.
                 const newOffset = charPositionsCurr.lastIndexOf(sg.from)
                 if (newOffset !== -1) sg.offset = newOffset
               }
@@ -449,11 +430,13 @@ export default function EditorContainer({
     }
   })
 
+  /* ---------- Sync editor ref & run initial analysis ---------- */
   useEffect(() => {
     if (editor) {
-      runChecks() // Initial check
+      editorRef.current = editor
+      runChecks()
     }
-  }, [editor])
+  }, [editor, runChecks])
 
   /* ------------------------------ Handlers ------------------------------ */
   const handleSave = () => {
@@ -828,7 +811,7 @@ export default function EditorContainer({
   const handleCreateSlideDeck = async () => {
     if (!editor || creatingSlide) return
     const minutesStr = prompt(
-      "Enter the desired length of your presentation in minutes:",
+      "Enter the desired length of your presentation in minutes (max 120):",
       "10"
     )
     if (!minutesStr) return // User cancelled
@@ -906,9 +889,16 @@ export default function EditorContainer({
     <div className="flex h-full w-full">
       <div
         className="relative flex flex-1 flex-col"
-        onClick={() => {
-          if (editor && !editor.isFocused) {
-            editor.chain().focus().run()
+        onClick={e => {
+          if (!editor) return
+          // Only refocus TipTap when the user clicks inside the actual
+          // content area – not when they click the title field, toolbar, etc.
+          const target = e.target as HTMLElement
+          const editorArea = editorViewRef.current
+          if (editorArea && editorArea.contains(target)) {
+            if (!editor.isFocused) {
+              editor.chain().focus().run()
+            }
           }
         }}
       >
@@ -957,11 +947,15 @@ export default function EditorContainer({
           Page {currentPage} of {pageCount}
         </div>
 
-        {definition && (
+        {definition && defineAnchor && (
           <div
             ref={definitionPopupRef}
             className="absolute z-10 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95"
-            style={{ position: "absolute" }}
+            style={{
+              position: "absolute",
+              top: `${defineAnchor.y + 8}px`,
+              left: `${defineAnchor.x}px`
+            }}
           >
             <h4 className="font-bold">{definition.term}</h4>
             <p className="text-sm">{definition.definition}</p>
