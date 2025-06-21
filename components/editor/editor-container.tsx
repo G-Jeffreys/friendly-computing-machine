@@ -153,6 +153,24 @@ export default function EditorContainer({
     }
   }, [initialDocument.content])
 
+  // Load slide deck history on mount
+  useEffect(() => {
+    const loadSlideDeckHistory = async () => {
+      try {
+        const res = await fetch(`/api/documents/${initialDocument.id}/slide-deck`)
+        const json = await res.json()
+        if (json.isSuccess) {
+          setSlideDeckHistory(json.data)
+          console.log("[EditorContainer] loaded slide deck history", json.data.length)
+        }
+      } catch (e) {
+        console.error("[EditorContainer] failed to load slide deck history", e)
+      }
+    }
+    
+    loadSlideDeckHistory()
+  }, [initialDocument.id])
+
   const handleSelection = (editor: TipTapEditor) => {
     if (definitionTimerRef.current) {
       clearTimeout(definitionTimerRef.current)
@@ -985,6 +1003,7 @@ export default function EditorContainer({
           citations={citations}
           findingCitations={findingCitations}
           slideDeck={slideDeck}
+          slideDeckHistory={slideDeckHistory}
           onCreateSlideDeck={handleCreateSlideDeck}
           creatingSlideDeck={creatingSlide}
           onGenerateTone={handleToneHarmonize}

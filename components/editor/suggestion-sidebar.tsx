@@ -38,6 +38,7 @@ interface SuggestionSidebarProps {
 
   /* ---------------- Slide Deck ---------- */
   slideDeck?: { text: string }[]
+  slideDeckHistory?: { id: string; createdAt: string; outline: { text: string }[] }[]
   onCreateSlideDeck?: () => void
   creatingSlideDeck?: boolean
 
@@ -65,6 +66,7 @@ function SuggestionSidebar({
   findingCitations = false,
   citationKeywords = [],
   slideDeck = [],
+  slideDeckHistory = [],
   onCreateSlideDeck,
   creatingSlideDeck = false,
   onGenerateTone,
@@ -237,14 +239,32 @@ function SuggestionSidebar({
         <AccordionItem value="slides">
           <AccordionTrigger>Slide Deck</AccordionTrigger>
           <AccordionContent>
-            <Button
-              size="sm"
-              onClick={() => onCreateSlideDeck?.()}
-              disabled={creatingSlideDeck}
-              className="mb-2"
-            >
-              {creatingSlideDeck ? "Generating…" : "Generate"}
-            </Button>
+            <div className="mb-4 space-y-2">
+              <Button
+                size="sm"
+                onClick={() => onCreateSlideDeck?.()}
+                disabled={creatingSlideDeck}
+                className="w-full"
+              >
+                {creatingSlideDeck ? "Generating…" : "Generate"}
+              </Button>
+              {slideDeck.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    // Find the most recent slide deck ID from history
+                    const latestDeck = slideDeckHistory[0]
+                    if (latestDeck) {
+                      window.open(`/slides/${latestDeck.id}`, '_blank')
+                    }
+                  }}
+                >
+                  View Slides
+                </Button>
+              )}
+            </div>
             {slideDeck.length > 0 ? (
               <>
                 <p className="mb-1 text-xs text-muted-foreground">
@@ -260,6 +280,34 @@ function SuggestionSidebar({
               </>
             ) : (
               <p className="text-muted-foreground text-sm">No slide deck yet</p>
+            )}
+
+            {/* Slide Deck History */}
+            {slideDeckHistory.length > 0 && (
+              <div className="mt-4 border-t pt-4">
+                <h4 className="mb-2 text-sm font-semibold">History</h4>
+                <ScrollArea className="h-32">
+                  <div className="space-y-2">
+                    {slideDeckHistory.map(deck => (
+                      <button
+                        key={deck.id}
+                        onClick={() => window.open(`/slides/${deck.id}`, '_blank')}
+                        className="w-full rounded-md border p-2 text-left text-xs hover:bg-muted"
+                      >
+                        <p>
+                          {new Date(deck.createdAt).toLocaleString([], {
+                            dateStyle: "medium",
+                            timeStyle: "short"
+                          })}
+                        </p>
+                        <p className="truncate text-muted-foreground">
+                          {deck.outline.length} points
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
             )}
           </AccordionContent>
         </AccordionItem>

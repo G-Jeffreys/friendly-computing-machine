@@ -23,7 +23,8 @@ const navLinks: { href: string; label: string }[] = []
 
 const signedInLinks = [
   { href: "/documents", label: "Documents" },
-  { href: "/dictionary", label: "Dictionary" }
+  { href: "/dictionary", label: "Dictionary" },
+  { href: "/slides", label: "Slides" }
 ]
 
 export default function Header() {
