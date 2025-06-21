@@ -811,7 +811,7 @@ export default function EditorContainer({
   const handleCreateSlideDeck = async () => {
     if (!editor || creatingSlide) return
     const minutesStr = prompt(
-      "Enter the desired length of your presentation in minutes:",
+      "Enter the desired length of your presentation in minutes (max 120):",
       "10"
     )
     if (!minutesStr) return // User cancelled

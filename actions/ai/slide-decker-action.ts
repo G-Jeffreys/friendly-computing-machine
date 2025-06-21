@@ -30,7 +30,9 @@ export async function slideDeckerAction(
     // Guardrail – cap minutes to prevent runaway token usage.
     const safeMinutes = Math.min(Math.max(minutes, 1), 120)
 
-    const prompt = `Create a slide presentation outline for the following paper, assuming a talk length of ${safeMinutes} minutes. Output 1 bullet point per minute. Each bullet should summarise one key point or idea in a clear academic voice.`
+    const prompt = `Create a slide presentation outline for the following paper, assuming a talk length of ${safeMinutes} minutes. Output exactly one bullet point per minute. Each bullet should summarise one key point or idea in a clear academic voice.
+
+If the paper does not contain enough material to provide ${safeMinutes} distinct bullet points, produce as many as are appropriate and append a brief note indicating that the remaining minutes could not be filled due to insufficient content.`
 
     console.debug("[slideDeckerAction] prompt", prompt.slice(0, 120), "…")
 

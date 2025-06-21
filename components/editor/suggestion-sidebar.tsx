@@ -1,8 +1,7 @@
 "use client"
 
-import { memo, useMemo, useState } from "react"
+import { memo, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Accordion,
   AccordionItem,
@@ -39,7 +38,7 @@ interface SuggestionSidebarProps {
 
   /* ---------------- Slide Deck ---------- */
   slideDeck?: { text: string }[]
-  onCreateSlideDeck?: (minutes: number) => void
+  onCreateSlideDeck?: () => void
   creatingSlideDeck?: boolean
 
   /* ---------------- Generate callbacks ---------------- */
@@ -82,9 +81,6 @@ function SuggestionSidebar({
   const spell = useMemo(() => suggestions.filter(s => s.type === "spell"), [suggestions])
   const grammar = useMemo(() => suggestions.filter(s => s.type === "grammar"), [suggestions])
   const style = useMemo(() => suggestions.filter(s => s.type === "style"), [suggestions])
-
-  /* ---------------- Slide deck form state ---------------- */
-  const [minutes, setMinutes] = useState<number>(10)
 
   const renderSuggestionList = (list: Suggestion[]) =>
     list.length === 0 ? (
@@ -241,31 +237,27 @@ function SuggestionSidebar({
         <AccordionItem value="slides">
           <AccordionTrigger>Slide Deck</AccordionTrigger>
           <AccordionContent>
-            <div className="mb-2 flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                max={120}
-                value={minutes}
-                onChange={e => setMinutes(parseInt(e.target.value, 10) || 10)}
-                className="w-20"
-              />
-              <Button
-                size="sm"
-                onClick={() => onCreateSlideDeck?.(minutes)}
-                disabled={creatingSlideDeck}
-              >
-                {creatingSlideDeck ? "Generating…" : "Generate"}
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              onClick={() => onCreateSlideDeck?.()}
+              disabled={creatingSlideDeck}
+              className="mb-2"
+            >
+              {creatingSlideDeck ? "Generating…" : "Generate"}
+            </Button>
             {slideDeck.length > 0 ? (
-              <ScrollArea className="h-48">
-                <ul className="list-disc pl-4 text-sm">
-                  {slideDeck.map((s, i) => (
-                    <li key={i}>{s.text}</li>
-                  ))}
-                </ul>
-              </ScrollArea>
+              <>
+                <p className="mb-1 text-xs text-muted-foreground">
+                  Length: {slideDeck.length} minutes
+                </p>
+                <ScrollArea className="h-48">
+                  <ul className="list-disc pl-4 text-sm">
+                    {slideDeck.map((s, i) => (
+                      <li key={i}>{s.text}</li>
+                    ))}
+                  </ul>
+                </ScrollArea>
+              </>
             ) : (
               <p className="text-muted-foreground text-sm">No slide deck yet</p>
             )}
