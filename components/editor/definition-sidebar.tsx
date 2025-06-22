@@ -43,7 +43,11 @@ interface ResearchSidebarProps {
 
   /** Slide Deck Props */
   slideDeck?: { text: string }[]
-  slideDeckHistory?: { id: string; createdAt: string; outline: { text: string }[] }[]
+  slideDeckHistory?: {
+    id: string
+    createdAt: string
+    outline: { text: string }[]
+  }[]
   onCreateSlideDeck?: () => void
   creatingSlideDeck?: boolean
 
@@ -53,7 +57,7 @@ interface ResearchSidebarProps {
 }
 
 /**
- * ResearchSidebar – displays contextual research tools including definitions, 
+ * ResearchSidebar – displays contextual research tools including definitions,
  * citations, slide generation, and readability analysis on the left side of the editor.
  */
 const ResearchSidebar = memo(function ResearchSidebar({
@@ -73,24 +77,39 @@ const ResearchSidebar = memo(function ResearchSidebar({
   readability = null,
   stats = null
 }: ResearchSidebarProps) {
-  console.log("[ResearchSidebar] render - definitions:", !!definition, "citations:", citations.length, "slides:", slideDeck.length)
+  console.log(
+    "[ResearchSidebar] render - definitions:",
+    !!definition,
+    "citations:",
+    citations.length,
+    "slides:",
+    slideDeck.length
+  )
 
-  const citationSection = (
+  const citationSection =
     findingCitations || generatingCitations ? (
-      <p className="text-sm text-muted-foreground">Searching…</p>
+      <p className="text-muted-foreground text-sm">Searching…</p>
     ) : citations.length === 0 ? (
       <div>
-        <p className="text-sm text-muted-foreground mb-2">No citations found</p>
+        <p className="text-muted-foreground mb-2 text-sm">No citations found</p>
         {onGenerateCitations && (
-          <Button size="sm" onClick={onGenerateCitations} disabled={generatingCitations || findingCitations}>
-            {generatingCitations || findingCitations ? "Generating…" : "Generate Citations"}
+          <Button
+            size="sm"
+            onClick={onGenerateCitations}
+            disabled={generatingCitations || findingCitations}
+          >
+            {generatingCitations || findingCitations
+              ? "Generating…"
+              : "Generate Citations"}
           </Button>
         )}
       </div>
     ) : (
       <>
         {citationKeywords.length > 0 && (
-          <p className="mb-2 text-xs text-muted-foreground">Keywords: {citationKeywords.join(", ")}</p>
+          <p className="text-muted-foreground mb-2 text-xs">
+            Keywords: {citationKeywords.join(", ")}
+          </p>
         )}
         <ScrollArea className="h-64">
           <ul className="space-y-4 text-sm">
@@ -98,16 +117,29 @@ const ResearchSidebar = memo(function ResearchSidebar({
               <li key={i} className="border-b pb-2">
                 <p className="font-bold">{c.title}</p>
                 <p className="text-muted-foreground">{c.authors}</p>
-                <p className="text-xs italic text-muted-foreground">{c.journal}</p>
-                <p className="text-xs text-muted-foreground">SJR (2024): {c.sjr.toFixed(3)}</p>
+                <p className="text-muted-foreground text-xs italic">
+                  {c.journal}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  SJR (2024): {c.sjr.toFixed(3)}
+                </p>
                 <div className="mt-2 flex gap-2">
                   {onInsertCitation && (
-                    <Button size="sm" variant="outline" onClick={() => onInsertCitation(c)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onInsertCitation(c)}
+                    >
                       Insert
                     </Button>
                   )}
                   {c.url && (
-                    <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-xs underline">
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs underline"
+                    >
                       Source
                     </a>
                   )}
@@ -118,16 +150,21 @@ const ResearchSidebar = memo(function ResearchSidebar({
         </ScrollArea>
       </>
     )
-  )
 
   return (
-    <aside className="w-72 max-h-screen overflow-auto border-r bg-background p-4">
+    <aside className="bg-background max-h-screen w-72 overflow-auto border-r p-4">
       <div className="mb-4">
         <h2 className="text-lg font-semibold">Research Tools</h2>
-        <p className="text-sm text-muted-foreground">AI-powered research and content assistance</p>
+        <p className="text-muted-foreground text-sm">
+          AI-powered research and content assistance
+        </p>
       </div>
 
-      <Accordion type="multiple" className="space-y-2" defaultValue={["definitions", "readability"]}>
+      <Accordion
+        type="multiple"
+        className="space-y-2"
+        defaultValue={["definitions", "readability"]}
+      >
         {/* Definition Expander */}
         <AccordionItem value="definitions">
           <AccordionTrigger className="text-sm font-medium">
@@ -136,12 +173,12 @@ const ResearchSidebar = memo(function ResearchSidebar({
           <AccordionContent>
             {/* Placeholder/Instructions */}
             {!definition && !isDefining && !definedTerm && (
-              <div className="flex flex-col items-center justify-center space-y-4 p-4 text-center text-muted-foreground">
-                <Info className="h-6 w-6" />
+              <div className="text-muted-foreground flex flex-col items-center justify-center space-y-4 p-4 text-center">
+                <Info className="size-6" />
                 <div>
                   <p className="text-sm">
-                    Select any academic term or phrase in your text to see its definition,
-                    etymology, and example usage.
+                    Select any academic term or phrase in your text to see its
+                    definition, etymology, and example usage.
                   </p>
                 </div>
               </div>
@@ -162,17 +199,21 @@ const ResearchSidebar = memo(function ResearchSidebar({
               <div className="space-y-4">
                 <div>
                   <h4 className="font-semibold">{definition.term}</h4>
-                  <p className="text-sm text-muted-foreground">{definition.definition}</p>
+                  <p className="text-muted-foreground text-sm">
+                    {definition.definition}
+                  </p>
                 </div>
 
                 <div>
                   <h5 className="text-sm font-medium">Etymology</h5>
-                  <p className="text-sm text-muted-foreground">{definition.etymology}</p>
+                  <p className="text-muted-foreground text-sm">
+                    {definition.etymology}
+                  </p>
                 </div>
 
                 <div>
                   <h5 className="text-sm font-medium">Example Usage</h5>
-                  <p className="text-sm italic text-muted-foreground">
+                  <p className="text-muted-foreground text-sm italic">
                     {definition.example}
                   </p>
                 </div>
@@ -186,9 +227,7 @@ const ResearchSidebar = memo(function ResearchSidebar({
           <AccordionTrigger className="text-sm font-medium">
             Citation Hunter {citations.length > 0 && `(${citations.length})`}
           </AccordionTrigger>
-          <AccordionContent>
-            {citationSection}
-          </AccordionContent>
+          <AccordionContent>{citationSection}</AccordionContent>
         </AccordionItem>
 
         {/* Slide Deck */}
@@ -218,7 +257,7 @@ const ResearchSidebar = memo(function ResearchSidebar({
                       // Find the most recent slide deck ID from history
                       const latestDeck = slideDeckHistory?.[0]
                       if (latestDeck) {
-                        window.open(`/slides/${latestDeck.id}`, '_blank')
+                        window.open(`/slides/${latestDeck.id}`, "_blank")
                       }
                     }}
                   >
@@ -229,11 +268,11 @@ const ResearchSidebar = memo(function ResearchSidebar({
 
               {slideDeck.length > 0 ? (
                 <>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     Length: {slideDeck.length} slides
                   </p>
                   <ScrollArea className="h-32">
-                    <ul className="list-disc pl-4 space-y-1 text-sm">
+                    <ul className="list-disc space-y-1 pl-4 text-sm">
                       {slideDeck.map((s, i) => (
                         <li key={i}>{s.text}</li>
                       ))}
@@ -241,7 +280,9 @@ const ResearchSidebar = memo(function ResearchSidebar({
                   </ScrollArea>
                 </>
               ) : (
-                <p className="text-muted-foreground text-sm">No slide deck generated yet</p>
+                <p className="text-muted-foreground text-sm">
+                  No slide deck generated yet
+                </p>
               )}
 
               {/* Slide Deck History */}
@@ -253,8 +294,10 @@ const ResearchSidebar = memo(function ResearchSidebar({
                       {slideDeckHistory.map(deck => (
                         <button
                           key={deck.id}
-                          onClick={() => window.open(`/slides/${deck.id}`, '_blank')}
-                          className="w-full rounded-md border p-2 text-left text-xs hover:bg-muted"
+                          onClick={() =>
+                            window.open(`/slides/${deck.id}`, "_blank")
+                          }
+                          className="hover:bg-muted w-full rounded-md border p-2 text-left text-xs"
                         >
                           <p className="text-xs">
                             {new Date(deck.createdAt).toLocaleString([], {
@@ -262,7 +305,7 @@ const ResearchSidebar = memo(function ResearchSidebar({
                               timeStyle: "short"
                             })}
                           </p>
-                          <p className="truncate text-muted-foreground">
+                          <p className="text-muted-foreground truncate">
                             {deck.outline.length} slides
                           </p>
                         </button>
@@ -284,38 +327,55 @@ const ResearchSidebar = memo(function ResearchSidebar({
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-medium">
-                  Readability Score: {readability !== null ? readability.toFixed(1) : "—"}
+                  Readability Score:{" "}
+                  {readability !== null ? readability.toFixed(1) : "—"}
                 </p>
                 {readability !== null && (
-                  <p className="text-xs text-muted-foreground">
-                    {readability > 60 ? "Easy to read" : readability > 30 ? "Moderate" : "Complex"}
+                  <p className="text-muted-foreground text-xs">
+                    {readability > 60
+                      ? "Easy to read"
+                      : readability > 30
+                        ? "Moderate"
+                        : "Complex"}
                   </p>
                 )}
               </div>
-              
+
               {stats && (
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Words:</span>
-                    <span className="font-medium">{stats.words.toLocaleString()}</span>
+                    <span className="font-medium">
+                      {stats.words.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sentences:</span>
-                    <span className="font-medium">{stats.sentences.toLocaleString()}</span>
+                    <span className="font-medium">
+                      {stats.sentences.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Avg. word length:</span>
-                    <span className="font-medium">{stats.avgWordLength.toFixed(1)} chars</span>
+                    <span className="text-muted-foreground">
+                      Avg. word length:
+                    </span>
+                    <span className="font-medium">
+                      {stats.avgWordLength.toFixed(1)} chars
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Reading time:</span>
-                    <span className="font-medium">{stats.readingTimeMinutes.toFixed(1)} min</span>
+                    <span className="font-medium">
+                      {stats.readingTimeMinutes.toFixed(1)} min
+                    </span>
                   </div>
                 </div>
               )}
 
               {!stats && (
-                <p className="text-sm text-muted-foreground">Start writing to see document statistics</p>
+                <p className="text-muted-foreground text-sm">
+                  Start writing to see document statistics
+                </p>
               )}
             </div>
           </AccordionContent>
@@ -326,4 +386,4 @@ const ResearchSidebar = memo(function ResearchSidebar({
 })
 
 // Update export name to match new functionality
-export default ResearchSidebar 
+export default ResearchSidebar

@@ -80,7 +80,7 @@ export default function ResearchAssistantSidebar({
     <div className="border-l bg-slate-50 p-4 pt-10 lg:w-96">
       <div className="sticky top-0 bg-slate-50 pt-4">
         <h2 className="text-lg font-semibold">Research Assistant</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Generate a comprehensive report with suggestions for improving your
           paper.
         </p>
@@ -98,8 +98,8 @@ export default function ResearchAssistantSidebar({
 
       {isLoading && (
         <div className="mt-10 flex flex-col items-center justify-center text-center">
-          <Wand2 className="size-12 animate-pulse text-muted-foreground" />
-          <p className="mt-4 text-sm text-muted-foreground">
+          <Wand2 className="text-muted-foreground size-12 animate-pulse" />
+          <p className="text-muted-foreground mt-4 text-sm">
             Analyzing your document...
           </p>
         </div>
@@ -139,7 +139,7 @@ export default function ResearchAssistantSidebar({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     No tone suggestions.
                   </p>
                 )}
@@ -177,7 +177,7 @@ export default function ResearchAssistantSidebar({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     No citations found.
                   </p>
                 )}
@@ -216,7 +216,7 @@ export default function ResearchAssistantSidebar({
                     </ul>
                   </>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     No slide deck generated.
                   </p>
                 )}
@@ -228,12 +228,12 @@ export default function ResearchAssistantSidebar({
 
       {!report && !isLoading && (
         <div className="mt-10 flex flex-col items-center justify-center text-center">
-          <Lightbulb className="size-12 text-muted-foreground" />
-          <p className="mt-4 text-sm text-muted-foreground">
+          <Lightbulb className="text-muted-foreground size-12" />
+          <p className="text-muted-foreground mt-4 text-sm">
             Click "Generate Report" to get started.
           </p>
         </div>
       )}
     </div>
   )
-} 
+}

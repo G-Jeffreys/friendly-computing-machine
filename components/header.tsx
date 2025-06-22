@@ -47,7 +47,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        "fixed top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        "bg-background/95 supports-[backdrop-filter]:bg-background/60 fixed top-0 z-50 w-full border-b backdrop-blur",
         isScrolled && "shadow-sm"
       )}
     >
@@ -58,8 +58,8 @@ export function Header() {
               href="/documents"
               className="flex items-center space-x-2 transition-opacity hover:opacity-90"
             >
-              <Rocket className="h-6 w-6" />
-              <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-xl font-bold text-transparent">
+              <Rocket className="size-6" />
+              <span className="from-primary to-primary/80 bg-gradient-to-r bg-clip-text text-xl font-bold text-transparent">
                 WordWise
               </span>
             </Link>
@@ -69,13 +69,13 @@ export function Header() {
               href="/about"
               className="flex items-center space-x-2 transition-opacity hover:opacity-90"
             >
-              <Rocket className="h-6 w-6" />
-              <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-xl font-bold text-transparent">
+              <Rocket className="size-6" />
+              <span className="from-primary to-primary/80 bg-gradient-to-r bg-clip-text text-xl font-bold text-transparent">
                 WordWise
               </span>
             </Link>
           </SignedOut>
-          
+
           {/* Navigation - showing appropriate links based on auth state */}
           <nav className="hidden gap-6 md:flex">
             <SignedOut>
@@ -83,19 +83,19 @@ export function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
                 >
                   {link.label}
                 </Link>
               ))}
             </SignedOut>
-            
+
             <SignedIn>
               {signedInLinks.map(link => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
                 >
                   {link.label}
                 </Link>
@@ -106,7 +106,7 @@ export function Header() {
 
         <div className="flex items-center gap-4">
           <ThemeSwitcher />
-          
+
           <SignedOut>
             <SignInButton mode="modal">
               <Button variant="ghost" className="text-sm font-medium">
@@ -133,9 +133,9 @@ export function Header() {
               aria-label="Toggle menu"
             >
               {isMenuOpen ? (
-                <X className="h-6 w-6" />
+                <X className="size-6" />
               ) : (
-                <Menu className="h-6 w-6" />
+                <Menu className="size-6" />
               )}
             </Button>
           </div>
@@ -144,14 +144,14 @@ export function Header() {
 
       {/* Mobile menu */}
       {isMenuOpen && (
-        <nav className="border-t bg-background/95 backdrop-blur p-4 md:hidden">
+        <nav className="bg-background/95 border-t p-4 backdrop-blur md:hidden">
           <ul className="space-y-2">
             <SignedOut>
               {navLinks.map(link => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground block rounded-md px-3 py-2 text-sm font-medium transition-colors"
                     onClick={toggleMenu}
                   >
                     {link.label}
@@ -164,7 +164,7 @@ export function Header() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground block rounded-md px-3 py-2 text-sm font-medium transition-colors"
                     onClick={toggleMenu}
                   >
                     {link.label}

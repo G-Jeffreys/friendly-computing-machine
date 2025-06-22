@@ -59,13 +59,13 @@ export default function SlidesPage() {
       try {
         setLoading(true)
         setError(null)
-        
+
         // Fetch all documents with their slide decks in a single request
         const response = await fetch("/api/documents?include=slideDecks")
         if (!response.ok) {
-          throw new Error('Failed to fetch documents')
+          throw new Error("Failed to fetch documents")
         }
-        
+
         const data = await response.json()
         setDocuments(data)
       } catch (error) {
@@ -79,11 +79,17 @@ export default function SlidesPage() {
     loadDocuments()
   }, [user?.id])
 
-  const handleDeleteSlideDeck = async (documentId: string, slideDeckId: string) => {
+  const handleDeleteSlideDeck = async (
+    documentId: string,
+    slideDeckId: string
+  ) => {
     try {
-      const res = await fetch(`/api/documents/${documentId}/slide-deck/${slideDeckId}`, {
-        method: "DELETE"
-      })
+      const res = await fetch(
+        `/api/documents/${documentId}/slide-deck/${slideDeckId}`,
+        {
+          method: "DELETE"
+        }
+      )
 
       if (res.ok) {
         // Update local state
@@ -92,14 +98,16 @@ export default function SlidesPage() {
             if (doc.id === documentId) {
               return {
                 ...doc,
-                slideDecks: doc.slideDecks.filter(deck => deck.id !== slideDeckId)
+                slideDecks: doc.slideDecks.filter(
+                  deck => deck.id !== slideDeckId
+                )
               }
             }
             return doc
           })
         )
       } else {
-        throw new Error('Failed to delete slide deck')
+        throw new Error("Failed to delete slide deck")
       }
     } catch (error) {
       console.error("[SlidesPage] Failed to delete slide deck:", error)
@@ -130,21 +138,26 @@ export default function SlidesPage() {
       <h1 className="mb-8 text-3xl font-bold">Slide Decks</h1>
 
       {documents.length === 0 ? (
-        <p className="text-muted-foreground">No documents with slide decks yet.</p>
+        <p className="text-muted-foreground">
+          No documents with slide decks yet.
+        </p>
       ) : (
         <Accordion type="single" collapsible className="w-full">
           {documents.map(doc => (
             <AccordionItem key={doc.id} value={doc.id}>
               <AccordionTrigger className="text-xl">
                 {doc.title}
-                <span className="ml-2 text-sm text-muted-foreground">
-                  ({doc.slideDecks.length} deck{doc.slideDecks.length !== 1 ? "s" : ""})
+                <span className="text-muted-foreground ml-2 text-sm">
+                  ({doc.slideDecks.length} deck
+                  {doc.slideDecks.length !== 1 ? "s" : ""})
                 </span>
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-4 p-4">
                   {doc.slideDecks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No slide decks yet.</p>
+                    <p className="text-muted-foreground text-sm">
+                      No slide decks yet.
+                    </p>
                   ) : (
                     doc.slideDecks.map(deck => (
                       <div
@@ -155,7 +168,7 @@ export default function SlidesPage() {
                           <h3 className="text-base font-medium">
                             {`Slides (${new Date(deck.createdAt).toLocaleDateString()})`}
                           </h3>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-muted-foreground text-sm">
                             {deck.outline.length} slides
                           </p>
                         </div>
@@ -171,10 +184,12 @@ export default function SlidesPage() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Slide Deck</AlertDialogTitle>
+                                <AlertDialogTitle>
+                                  Delete Slide Deck
+                                </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to delete this slide deck? This action
-                                  cannot be undone.
+                                  Are you sure you want to delete this slide
+                                  deck? This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -201,4 +216,4 @@ export default function SlidesPage() {
       )}
     </div>
   )
-} 
+}

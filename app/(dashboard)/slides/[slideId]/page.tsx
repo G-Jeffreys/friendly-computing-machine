@@ -37,7 +37,7 @@ export default async function SlidePage({
         href="/slides"
         className="absolute left-4 top-4 z-50 flex items-center gap-2 rounded-full bg-black/10 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-black/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/20"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="size-4" />
         Back to Slides
       </Link>
 
@@ -55,4 +55,4 @@ export default async function SlidePage({
       <SlideRenderer markdown={deck.content} />
     </div>
   )
-} 
+}

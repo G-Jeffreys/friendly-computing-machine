@@ -17,7 +17,7 @@ interface WritingSuggestionSidebarProps {
   onApplySuggestion: (sg: Suggestion, replacement: string) => void
   /** Optional handler for "Add to Dictionary" (only for spell suggestions) */
   onAddToDictionary?: (word: string) => void
-  
+
   /* ---------------- Tone ---------------- */
   toneSuggestions?: { original: string; revised: string }[]
   onAcceptToneSuggestion?: (orig: string, revised: string) => void
@@ -26,7 +26,7 @@ interface WritingSuggestionSidebarProps {
 }
 
 /**
- * WritingSuggestionSidebar – lists spell / grammar / style / tone suggestions 
+ * WritingSuggestionSidebar – lists spell / grammar / style / tone suggestions
  * on the right side of the editor for writing improvement.
  */
 function WritingSuggestionSidebar({
@@ -45,9 +45,18 @@ function WritingSuggestionSidebar({
   )
 
   // Split suggestions by type for dedicated accordions
-  const spell = useMemo(() => suggestions.filter(s => s.type === "spell"), [suggestions])
-  const grammar = useMemo(() => suggestions.filter(s => s.type === "grammar"), [suggestions])
-  const style = useMemo(() => suggestions.filter(s => s.type === "style"), [suggestions])
+  const spell = useMemo(
+    () => suggestions.filter(s => s.type === "spell"),
+    [suggestions]
+  )
+  const grammar = useMemo(
+    () => suggestions.filter(s => s.type === "grammar"),
+    [suggestions]
+  )
+  const style = useMemo(
+    () => suggestions.filter(s => s.type === "style"),
+    [suggestions]
+  )
 
   const renderSuggestionList = (list: Suggestion[]) =>
     list.length === 0 ? (
@@ -67,7 +76,9 @@ function WritingSuggestionSidebar({
                         : "text-purple-600"
                   }
                 >
-                  {plainText.replace(/\n+/g, " ").substring(sg.offset, sg.offset + sg.length)}
+                  {plainText
+                    .replace(/\n+/g, " ")
+                    .substring(sg.offset, sg.offset + sg.length)}
                 </span>{" "}
                 : {sg.message}
               </p>
@@ -107,13 +118,82 @@ function WritingSuggestionSidebar({
     )
 
   return (
-    <aside className="w-72 max-h-screen overflow-auto border-l bg-background p-4">
+    <aside className="bg-background max-h-screen w-72 overflow-auto border-l p-4">
       <div className="mb-4">
         <h2 className="text-lg font-semibold">Writing Assistant</h2>
-        <p className="text-sm text-muted-foreground">Grammar, style, and tone suggestions</p>
+        <p className="text-muted-foreground text-sm">
+          Grammar, style, and tone suggestions
+        </p>
       </div>
 
-      <Accordion type="multiple" className="space-y-2" defaultValue={["spell", "grammar"]}>
+      <Accordion
+        type="multiple"
+        className="space-y-2"
+        defaultValue={["tone", "spell", "grammar"]}
+      >
+        {/* Tone Harmonizer */}
+        <AccordionItem value="tone" className="border-none">
+          <AccordionTrigger className="text-sm font-medium">
+            Tone Suggestions{" "}
+            {toneSuggestions.length > 0 ? `(${toneSuggestions.length})` : ""}
+          </AccordionTrigger>
+          <AccordionContent>
+            {toneSuggestions.length === 0 ? (
+              <div>
+                <p className="text-muted-foreground mb-2 text-sm">
+                  Enhance your writing tone and style with AI suggestions
+                </p>
+                {onGenerateTone && (
+                  <Button
+                    size="sm"
+                    onClick={onGenerateTone}
+                    disabled={generatingTone}
+                  >
+                    {generatingTone
+                      ? "Generating…"
+                      : "Generate Tone Suggestions"}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {onGenerateTone && (
+                  <Button
+                    size="sm"
+                    onClick={onGenerateTone}
+                    className="mb-2 w-full"
+                    disabled={generatingTone}
+                  >
+                    {generatingTone ? "Generating…" : "Refresh Suggestions"}
+                  </Button>
+                )}
+                <ScrollArea className="h-72">
+                  <div className="space-y-3">
+                    {toneSuggestions.map((t, i) => (
+                      <div key={i} className="rounded border p-2 text-sm">
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-muted-foreground mb-1 text-xs font-medium">
+                              Original:
+                            </p>
+                            <p className="text-sm">{t.original}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1 text-xs font-medium">
+                              Improved:
+                            </p>
+                            <p className="text-sm font-medium">{t.revised}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+
         {/* Spelling */}
         <AccordionItem value="spell">
           <AccordionTrigger className="text-sm font-medium">
@@ -136,62 +216,6 @@ function WritingSuggestionSidebar({
             Style Suggestions ({style.length})
           </AccordionTrigger>
           <AccordionContent>{renderSuggestionList(style)}</AccordionContent>
-        </AccordionItem>
-
-        {/* Tone Harmonizer */}
-        <AccordionItem value="tone">
-          <AccordionTrigger className="text-sm font-medium">
-            Tone Suggestions {toneSuggestions.length > 0 ? `(${toneSuggestions.length})` : ""}
-          </AccordionTrigger>
-          <AccordionContent>
-            {toneSuggestions.length === 0 ? (
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Enhance your writing tone and style with AI suggestions
-                </p>
-                {onGenerateTone && (
-                  <Button size="sm" onClick={onGenerateTone} disabled={generatingTone}>
-                    {generatingTone ? "Generating…" : "Generate Tone Suggestions"}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {onGenerateTone && (
-                  <Button size="sm" onClick={onGenerateTone} className="mb-2 w-full" disabled={generatingTone}>
-                    {generatingTone ? "Generating…" : "Refresh Suggestions"}
-                  </Button>
-                )}
-                <ScrollArea className="h-48">
-                  <div className="space-y-3">
-                    {toneSuggestions.map((t, i) => (
-                      <div key={i} className="rounded border p-2 text-sm">
-                        <div className="space-y-2">
-                          <div>
-                            <p className="text-muted-foreground mb-1 text-xs font-medium">Original:</p>
-                            <p className="text-sm">{t.original}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground mb-1 text-xs font-medium">Improved:</p>
-                            <p className="text-sm font-medium text-blue-600">{t.revised}</p>
-                          </div>
-                          {onAcceptToneSuggestion && (
-                            <Button 
-                              size="sm" 
-                              className="mt-2 w-full" 
-                              onClick={() => onAcceptToneSuggestion(t.original, t.revised)}
-                            >
-                              Apply Change
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
-            )}
-          </AccordionContent>
         </AccordionItem>
       </Accordion>
     </aside>

@@ -22,23 +22,25 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
       .map(line => line.trim())
       .filter(Boolean)
       .map(line => line.replace(/^[-•\s]+/, "").trim()) // Remove bullet points and whitespace
-    
+
     const slides: string[] = []
     let currentSlide: string[] = []
-    
+
     items.forEach((item, index) => {
       currentSlide.push(`- ${item}`) // Add bullet point back
-      
+
       // Create a new slide when we have 3-5 items and there are more items,
       // or when we're at the end
-      if ((currentSlide.length >= 3 && items.length > index + 1) || 
-          currentSlide.length === 5 ||
-          index === items.length - 1) {
+      if (
+        (currentSlide.length >= 3 && items.length > index + 1) ||
+        currentSlide.length === 5 ||
+        index === items.length - 1
+      ) {
         slides.push(currentSlide.join("\n\n")) // Add extra newline for more spacing
         currentSlide = []
       }
     })
-    
+
     return slides
   }, [markdown])
 
@@ -93,9 +95,9 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
   return (
     <div className="relative flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center gap-8 p-4">
       {/* Progress bar */}
-      <div className="fixed left-0 right-0 top-0 z-50 p-4">
+      <div className="fixed inset-x-0 top-0 z-50 p-4">
         <Progress value={progress} className="h-2" />
-        <div className="mt-2 text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground mt-2 text-center text-sm">
           Slide {currentSlide + 1} of {slides.length}
         </div>
       </div>
@@ -116,15 +118,17 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
           className="absolute inset-0 flex items-center justify-center"
         >
           <div className="w-full rounded-xl border bg-gradient-to-b from-white to-gray-50 p-12 shadow-lg dark:from-slate-900 dark:to-slate-800">
-            <div className="prose prose-lg mx-auto flex h-full flex-col justify-center space-y-8 dark:prose-invert">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{slides[currentSlide]}</ReactMarkdown>
+            <div className="prose prose-lg dark:prose-invert mx-auto flex h-full flex-col justify-center space-y-8">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {slides[currentSlide]}
+              </ReactMarkdown>
             </div>
           </div>
         </motion.div>
       </div>
 
       {/* Navigation buttons */}
-      <div className="fixed bottom-8 left-0 right-0 z-50 flex justify-center gap-4">
+      <div className="fixed inset-x-0 bottom-8 z-50 flex justify-center gap-4">
         <button
           onClick={handlePrev}
           disabled={currentSlide === 0}
@@ -142,4 +146,4 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
       </div>
     </div>
   )
-} 
+}

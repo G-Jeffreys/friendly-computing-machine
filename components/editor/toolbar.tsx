@@ -52,7 +52,12 @@ function EditorToolbar({
   const handleLink = () => {
     const url = window.prompt("Enter URL")
     if (url) {
-      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run()
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange("link")
+        .setLink({ href: url })
+        .run()
     }
   }
 
@@ -128,21 +133,6 @@ function EditorToolbar({
         >
           <Redo className="size-4" />
         </Button>
-
-        <Separator orientation="vertical" className="h-6" />
-
-        {/* Feature Toggles Group */}
-        <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
-          <Button
-            size="sm"
-            variant={isMaxMode ? "secondary" : "ghost"}
-            className="rounded-full"
-            onClick={() => onToggleMaxMode?.(!isMaxMode)}
-          >
-            Max
-          </Button>
-          {/* Tone, Cite, Slide buttons removed – now generated via sidebar accordions */}
-        </div>
       </div>
 
       {/* Actions Group */}
@@ -158,4 +148,4 @@ function EditorToolbar({
   )
 }
 
-export default memo(EditorToolbar) 
+export default memo(EditorToolbar)
