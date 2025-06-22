@@ -33,7 +33,8 @@ import type { CitationEntry } from "@/actions/ai/citation-hunter-action"
 
 // Extracted UI components
 import EditorToolbar from "./editor-toolbar"
-import SuggestionSidebar from "./suggestion-sidebar"
+import WritingSuggestionSidebar from "./suggestion-sidebar"
+import ResearchSidebar from "./definition-sidebar"
 import {
   Dialog,
   DialogContent,
@@ -43,11 +44,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog"
 import posthog from "posthog-js"
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger
-} from "@/components/ui/hover-card"
+import DemoSignInPrompt from "./demo-sign-in-prompt"
 
 interface EditorContainerProps {
   initialDocument: SelectDocument
@@ -152,6 +149,24 @@ export default function EditorContainer({
       setIsNewDocument(true)
     }
   }, [initialDocument.content])
+
+  // Load slide deck history on mount
+  useEffect(() => {
+    const loadSlideDeckHistory = async () => {
+      try {
+        const res = await fetch(`/api/documents/${initialDocument.id}/slide-deck`)
+        const json = await res.json()
+        if (json.isSuccess) {
+          setSlideDeckHistory(json.data)
+          console.log("[EditorContainer] loaded slide deck history", json.data.length)
+        }
+      } catch (e) {
+        console.error("[EditorContainer] failed to load slide deck history", e)
+      }
+    }
+    
+    loadSlideDeckHistory()
+  }, [initialDocument.id])
 
   const handleSelection = (editor: TipTapEditor) => {
     if (definitionTimerRef.current) {
@@ -266,7 +281,9 @@ export default function EditorContainer({
     charPositionsRef.current = charPositions
 
     try {
-      const result = await analyse(analysisText)
+      // Pass user dictionary words to the analyser
+      const userDictionaryWords = Array.from(dictionaryRef.current)
+      const result = await analyse(analysisText, userDictionaryWords)
 
       const newSuggestions = result.suggestions.map(s => ({
         ...s,
@@ -305,6 +322,22 @@ export default function EditorContainer({
       const charPositions = charPositionsRef.current
       if (!charPositions) return DecorationSet.empty
 
+      // Add tone harmonizer decorations first (highest priority)
+      toneSuggestions.forEach(sg => {
+        const index = plainText.indexOf(sg.original)
+        if (index !== -1) {
+          const startIndex = index
+          const endIndex = index + sg.original.length - 1
+          if (startIndex >= charPositions.length || endIndex >= charPositions.length) return
+
+          const from = charPositions[startIndex]
+          const to = charPositions[endIndex] + 1 // inclusive
+
+          decos.push(Decoration.inline(from, to, { class: "text-green-600 underline decoration-green-600" }))
+        }
+      })
+
+      // Add other suggestions after (lower priority)
       const colorClass = (t: Suggestion["type"]) =>
         t === "spell"
           ? "text-red-600 underline decoration-red-600"
@@ -320,7 +353,14 @@ export default function EditorContainer({
         const from = charPositions[startIndex]
         const to = charPositions[endIndex] + 1 // inclusive
 
-        if (from && to) {
+        // Only add decoration if there isn't already a tone harmonizer decoration at this position
+        const hasToneDecoration = decos.some(d => 
+          (d.from <= from && d.to >= to) || // Tone decoration fully contains this one
+          (d.from >= from && d.from <= to) || // Tone decoration starts inside this one
+          (d.to >= from && d.to <= to) // Tone decoration ends inside this one
+        )
+
+        if (!hasToneDecoration) {
           ;(sg as PosSuggestion).from = from
           ;(sg as PosSuggestion).to = to
           decos.push(Decoration.inline(from, to, { class: colorClass(sg.type) }))
@@ -633,7 +673,19 @@ export default function EditorContainer({
   }, [])
 
   /* ------------------ Tone Harmonizer ------------------ */
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false)
+  const [currentFeature, setCurrentFeature] = useState("")
+
+  const promptSignIn = (featureName: string) => {
+    setCurrentFeature(featureName)
+    setShowSignInPrompt(true)
+  }
+
   const handleToneHarmonize = async () => {
+    if (demoMode) {
+      promptSignIn("Tone Harmonizer")
+      return
+    }
     if (!editor) return
 
     let textToHarmonize = plainText // Fallback to full document
@@ -695,34 +747,25 @@ export default function EditorContainer({
 
   /* ------------------ Definition handler ------------------ */
   const handleDefine = async (selection: string) => {
-    if (!editor || !selection || selection === definedTerm) return
-
-    const { from } = editor.state.selection
-    if (!selection || selection.length > 100) {
-      setDefinition(null)
+    if (demoMode) {
+      promptSignIn("Contextual Definer")
       return
     }
 
-    // Position popup near selection
-    if (definitionPopupRef.current) {
-      const { top, left } = editor.view.coordsAtPos(from)
-      // add scroll position to top
-      const scrollY = window.scrollY
-      definitionPopupRef.current.style.top = `${top + scrollY + 20}px`
-      definitionPopupRef.current.style.left = `${left}px`
-    }
-
+    if (!selection) return
     setIsDefining(true)
+    setDefinedTerm(selection)
 
     try {
       const res = await fetch("/api/definitions", {
         method: "POST",
-        body: JSON.stringify({ term: selection })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ term: selection, context: plainText })
       })
+
       if (res.ok) {
-        const json = await res.json()
-        setDefinition(json.data)
-        setDefinedTerm(selection)
+        const { data } = await res.json()
+        setDefinition(data)
       }
     } catch (e) {
       console.error(e)
@@ -770,6 +813,10 @@ export default function EditorContainer({
 
   /* ------------------ Find citations ------------------ */
   const handleFindCitations = async () => {
+    if (demoMode) {
+      promptSignIn("Citation Hunter")
+      return
+    }
     const wordCount = plainText.split(/\s+/).length
     if (demoMode && wordCount > DEMO_WORD_LIMIT) {
       toast({
@@ -809,6 +856,10 @@ export default function EditorContainer({
   const [slideModalOpen, setSlideModalOpen] = useState(false)
 
   const handleCreateSlideDeck = async () => {
+    if (demoMode) {
+      promptSignIn("Slide Decker")
+      return
+    }
     if (!editor || creatingSlide) return
     const minutesStr = prompt(
       "Enter the desired length of your presentation in minutes (max 120):",
@@ -868,6 +919,10 @@ export default function EditorContainer({
   }
 
   const handleRunAssistant = async () => {
+    if (demoMode) {
+      promptSignIn("Research Assistant")
+      return
+    }
     const res = await fetch(`/api/research-assistant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -887,113 +942,91 @@ export default function EditorContainer({
   /* ------------------------------ Render ------------------------------ */
   return (
     <div className="flex h-full w-full">
-      <div
-        className="relative flex flex-1 flex-col"
-        onClick={e => {
-          if (!editor) return
-          // Only refocus TipTap when the user clicks inside the actual
-          // content area – not when they click the title field, toolbar, etc.
-          const target = e.target as HTMLElement
-          const editorArea = editorViewRef.current
-          if (editorArea && editorArea.contains(target)) {
-            if (!editor.isFocused) {
-              editor.chain().focus().run()
-            }
-          }
-        }}
-      >
-        <div className="flex items-center justify-between border-b p-2 px-4">
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            className="w-1/2 bg-transparent text-lg font-semibold outline-none"
-            placeholder="Untitled Document"
-          />
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-              {secondsSinceLastSave < 5
-                ? "Saved just now"
-                : `Last saved ${Math.round(secondsSinceLastSave)}s ago`}
-            </p>
-            <Button onClick={handleSave} size="sm">
-              Save
-            </Button>
-            <Button onClick={handleDelete} size="sm" variant="destructive">
-              Delete
-            </Button>
-          </div>
-        </div>
-        <EditorToolbar
-          editor={editor}
-          maxMode={maxMode}
-          onToggleMaxMode={setMaxMode}
-          onToneHarmonize={handleToneHarmonize}
-          onFindCitations={handleFindCitations}
+      {/* Research Sidebar (Left) */}
+      <div className="w-72 border-r bg-background">
+        <ResearchSidebar
+          definition={definition}
+          isDefining={isDefining}
+          definedTerm={definedTerm}
+          citations={citations}
           findingCitations={findingCitations}
+          citationKeywords={citationKeywords}
+          onGenerateCitations={handleFindCitations}
+          generatingCitations={findingCitations}
+          onInsertCitation={handleInsertCitation}
+          slideDeck={slideDeck}
+          slideDeckHistory={slideDeckHistory}
           onCreateSlideDeck={handleCreateSlideDeck}
           creatingSlideDeck={creatingSlide}
-        />
-        <div
-          ref={editorViewRef}
-          onScroll={updateCurrentPage}
-          className={`paginated-editor-area relative h-full flex-1 ${
-            isNewDocument ? "new-document-highlight" : ""
-          }`}
-        >
-          <EditorContent editor={editor} />
-        </div>
-        <div className="page-counter">
-          Page {currentPage} of {pageCount}
-        </div>
-
-        {definition && defineAnchor && (
-          <div
-            ref={definitionPopupRef}
-            className="absolute z-10 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95"
-            style={{
-              position: "absolute",
-              top: `${defineAnchor.y + 8}px`,
-              left: `${defineAnchor.x}px`
-            }}
-          >
-            <h4 className="font-bold">{definition.term}</h4>
-            <p className="text-sm">{definition.definition}</p>
-            <div className="mt-2 text-xs text-muted-foreground">
-              <p>
-                <span className="font-semibold">Etymology:</span>{" "}
-                {definition.etymology}
-              </p>
-              <p className="mt-1">
-                <span className="font-semibold">Example:</span>{" "}
-                <em>{definition.example}</em>
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="hidden h-full flex-col border-l lg:flex">
-        <SuggestionSidebar
-          suggestions={suggestions}
-          plainText={plainText}
           readability={readability}
           stats={stats}
+        />
+      </div>
+
+      {/* Main Editor Area */}
+      <div className="flex-1">
+        <div className="mx-auto max-w-4xl">
+          <div className="flex items-center justify-between border-b p-2 px-4">
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-1/2 bg-transparent text-lg font-semibold outline-none"
+              placeholder="Untitled Document"
+            />
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">
+                {secondsSinceLastSave < 5
+                  ? "Saved just now"
+                  : `Last saved ${Math.round(secondsSinceLastSave)}s ago`}
+              </p>
+              <Button onClick={handleSave} size="sm">
+                Save
+              </Button>
+              <Button onClick={handleDelete} size="sm" variant="destructive">
+                Delete
+              </Button>
+            </div>
+          </div>
+          <EditorToolbar
+            editor={editor}
+            maxMode={maxMode}
+            onToggleMaxMode={setMaxMode}
+            onToneHarmonize={handleToneHarmonize}
+            onFindCitations={handleFindCitations}
+            findingCitations={findingCitations}
+            onCreateSlideDeck={handleCreateSlideDeck}
+            creatingSlideDeck={creatingSlide}
+          />
+          <div
+            ref={editorViewRef}
+            onScroll={updateCurrentPage}
+            className={`paginated-editor-area relative h-full flex-1 p-8 ${
+              isNewDocument ? "new-document-highlight" : ""
+            }`}
+          >
+            <EditorContent editor={editor} />
+          </div>
+          <div className="page-counter">
+            Page {currentPage} of {pageCount}
+          </div>
+        </div>
+      </div>
+
+      {/* Writing Suggestion Sidebar (Right) */}
+      <div className="w-72 border-l bg-background">
+        <WritingSuggestionSidebar
+          suggestions={suggestions}
+          plainText={plainText}
           onApplySuggestion={applySuggestion}
           onAddToDictionary={handleAddToDictionary}
           toneSuggestions={toneSuggestions}
           onAcceptToneSuggestion={applyToneSuggestion}
-          citations={citations}
-          findingCitations={findingCitations}
-          slideDeck={slideDeck}
-          onCreateSlideDeck={handleCreateSlideDeck}
-          creatingSlideDeck={creatingSlide}
           onGenerateTone={handleToneHarmonize}
           generatingTone={isHarmonizing}
-          onGenerateCitations={handleFindCitations}
-          generatingCitations={findingCitations}
-          citationKeywords={citationKeywords}
         />
       </div>
+
       {/* Demo Word Count Limiter Modal */}
       <Dialog open={demoBlocked} onOpenChange={setDemoBlocked}>
         <DialogContent className="sm:max-w-[425px]">
@@ -1010,6 +1043,12 @@ export default function EditorContainer({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DemoSignInPrompt
+        isOpen={showSignInPrompt}
+        onClose={() => setShowSignInPrompt(false)}
+        featureName={currentFeature}
+      />
     </div>
   )
 }

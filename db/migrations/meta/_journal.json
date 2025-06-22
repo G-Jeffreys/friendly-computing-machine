@@ -29,6 +29,20 @@
       "when": 1750356274504,
       "tag": "0003_outgoing_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1750541468771,
+      "tag": "0004_eager_jackpot",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1750557934186,
+      "tag": "0005_remarkable_firelord",
+      "breakpoints": true
     }
   ]
 }

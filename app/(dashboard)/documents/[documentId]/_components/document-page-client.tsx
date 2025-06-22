@@ -37,7 +37,7 @@ export default function DocumentPageClient({
           <DocNav />
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={55} minSize={30}>
+        <ResizablePanel defaultSize={60} minSize={40}>
           <div className="flex h-full items-center justify-center p-6">
             <main className="flex-1 overflow-y-auto">
               <EditorOrchestratorLazy
@@ -50,7 +50,7 @@ export default function DocumentPageClient({
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
+        <ResizablePanel defaultSize={25} minSize={15} maxSize={35}>
           <InsightsPanel
             suggestions={suggestions}
             report={report}

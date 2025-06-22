@@ -14,10 +14,11 @@ export interface DefinitionEntry {
  * definitionExpanderAction – returns a plain-language definition for the given term.
  */
 export async function definitionExpanderAction(
-  term: string
+  term: string,
+  context: string
 ): Promise<ActionState<DefinitionEntry>> {
   try {
-    const prompt = `For the academic term "${term}", provide a concise definition suitable for a university student. Additionally, include its etymology and one example sentence showing its correct usage in an academic context. Format the output as a JSON object with three keys: "definition", "etymology", and "example".`
+    const prompt = `For the academic term "${term}", provide a concise definition suitable for a university student. Additionally, include its etymology and one example sentence showing its correct usage in an academic context. Here is the full text for context: ${context}. Format the output as a JSON object with three keys: "definition", "etymology", and "example".`
 
     const raw = await callLLM<string>({
       prompt,

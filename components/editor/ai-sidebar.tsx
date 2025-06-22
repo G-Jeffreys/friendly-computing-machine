@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import SuggestionSidebar from "./suggestion-sidebar"
+import WritingSuggestionSidebar from "./suggestion-sidebar"
 import type { Suggestion } from "@/lib/hooks/use-spell-grammar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -288,13 +288,13 @@ function AiSidebar({
 
       {/* Suggestions */}
       <TabsContent value="suggestions">
-        <SuggestionSidebar
+        <WritingSuggestionSidebar
           suggestions={suggestions}
           plainText={plainText}
-          readability={readability}
-          stats={stats}
           onApplySuggestion={onApplySuggestion}
           onAddToDictionary={onAddToDictionary}
+          toneSuggestions={toneSuggestions}
+          onAcceptToneSuggestion={onAcceptToneSuggestion}
         />
       </TabsContent>
 

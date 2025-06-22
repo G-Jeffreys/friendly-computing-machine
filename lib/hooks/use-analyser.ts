@@ -26,12 +26,12 @@ export function useAnalyser() {
     }
   }, [])
 
-  const analyse = useCallback((text: string): Promise<AnalysisResult> => {
+  const analyse = useCallback((text: string, userDictionary: string[] = []): Promise<AnalysisResult> => {
     if (!workerRef.current) throw new Error("Worker not initialised")
     return new Promise(resolve => {
       const id = crypto.randomUUID()
       callbacks.current.set(id, resolve)
-      workerRef.current!.postMessage({ id, text })
+      workerRef.current!.postMessage({ id, text, userDictionary })
     })
   }, [])
 
