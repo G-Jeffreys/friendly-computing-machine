@@ -7,6 +7,7 @@ import { callLLM } from "@/lib/ai/llm"
 interface WorkerRequest {
   id: string
   text: string
+  userDictionary?: string[] // Add user dictionary support
 }
 
 interface WorkerResponse {
@@ -41,15 +42,19 @@ function fleschReadingEase(text: string) {
   return 206.835 - 1.015 * ASL - 84.6 * ASW
 }
 
-async function runLanguageTool(text: string): Promise<Suggestion[]> {
+async function runLanguageTool(text: string, userDictionary: Set<string> = new Set()): Promise<Suggestion[]> {
   if (!text.trim()) return []
 
   try {
+    // Create cache key that includes user dictionary words to ensure proper caching
+    const dictionaryKey = Array.from(userDictionary).sort().join(',')
+    const cacheKey = `lt-${text}-dict-${dictionaryKey}`
+    
     // Delegate to the generic LLM helper which internally knows how to call LanguageTool.
     const data = await callLLM<any>({
       provider: "languageTool",
       params: { text, language: "en-US" },
-      cacheKey: `lt-${text}`
+      cacheKey
     })
 
     const suggestions: Suggestion[] = data.matches.map((m: any) => ({
@@ -61,7 +66,16 @@ async function runLanguageTool(text: string): Promise<Suggestion[]> {
       type: m.rule.issueType === "misspelling" ? "spell" : "grammar"
     }))
 
-    return suggestions
+    // Filter out spell suggestions for words in user dictionary
+    const filtered = suggestions.filter(sg => {
+      if (sg.type !== "spell") return true
+      const word = text
+        .substring(sg.offset, sg.offset + sg.length)
+        .toLowerCase()
+      return !userDictionary.has(word)
+    })
+
+    return filtered
   } catch (e) {
     console.error("LanguageTool via callLLM failed", e)
     return []
@@ -81,9 +95,12 @@ function runWriteGood(text: string): Suggestion[] {
   }))
 }
 
-async function analyse(text: string): Promise<AnalysisResult> {
+async function analyse(text: string, userDictionary: string[] = []): Promise<AnalysisResult> {
+  // Convert array to Set for faster lookups
+  const dictionarySet = new Set(userDictionary.map(word => word.toLowerCase()))
+  
   const [lgSuggestions, styleSuggestions] = await Promise.all([
-    runLanguageTool(text),
+    runLanguageTool(text, dictionarySet),
     Promise.resolve(runWriteGood(text))
   ])
 
@@ -107,8 +124,8 @@ async function analyse(text: string): Promise<AnalysisResult> {
 }
 
 self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
-  const { id, text } = event.data
-  const result = await analyse(text)
+  const { id, text, userDictionary = [] } = event.data
+  const result = await analyse(text, userDictionary)
   const response: WorkerResponse = { id, result }
   // @ts-ignore
   self.postMessage(response)

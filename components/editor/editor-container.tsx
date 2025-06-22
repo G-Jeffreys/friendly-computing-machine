@@ -33,8 +33,8 @@ import type { CitationEntry } from "@/actions/ai/citation-hunter-action"
 
 // Extracted UI components
 import EditorToolbar from "./editor-toolbar"
-import SuggestionSidebar from "./suggestion-sidebar"
-import DefinitionSidebar from "./definition-sidebar"
+import WritingSuggestionSidebar from "./suggestion-sidebar"
+import ResearchSidebar from "./definition-sidebar"
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog"
 import posthog from "posthog-js"
+import DemoSignInPrompt from "./demo-sign-in-prompt"
 
 interface EditorContainerProps {
   initialDocument: SelectDocument
@@ -280,7 +281,9 @@ export default function EditorContainer({
     charPositionsRef.current = charPositions
 
     try {
-      const result = await analyse(analysisText)
+      // Pass user dictionary words to the analyser
+      const userDictionaryWords = Array.from(dictionaryRef.current)
+      const result = await analyse(analysisText, userDictionaryWords)
 
       const newSuggestions = result.suggestions.map(s => ({
         ...s,
@@ -670,7 +673,19 @@ export default function EditorContainer({
   }, [])
 
   /* ------------------ Tone Harmonizer ------------------ */
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false)
+  const [currentFeature, setCurrentFeature] = useState("")
+
+  const promptSignIn = (featureName: string) => {
+    setCurrentFeature(featureName)
+    setShowSignInPrompt(true)
+  }
+
   const handleToneHarmonize = async () => {
+    if (demoMode) {
+      promptSignIn("Tone Harmonizer")
+      return
+    }
     if (!editor) return
 
     let textToHarmonize = plainText // Fallback to full document
@@ -732,34 +747,25 @@ export default function EditorContainer({
 
   /* ------------------ Definition handler ------------------ */
   const handleDefine = async (selection: string) => {
-    if (!editor || !selection || selection === definedTerm) return
-
-    const { from } = editor.state.selection
-    if (!selection || selection.length > 100) {
-      setDefinition(null)
+    if (demoMode) {
+      promptSignIn("Contextual Definer")
       return
     }
 
-    // Position popup near selection
-    if (definitionPopupRef.current) {
-      const { top, left } = editor.view.coordsAtPos(from)
-      // add scroll position to top
-      const scrollY = window.scrollY
-      definitionPopupRef.current.style.top = `${top + scrollY + 20}px`
-      definitionPopupRef.current.style.left = `${left}px`
-    }
-
+    if (!selection) return
     setIsDefining(true)
+    setDefinedTerm(selection)
 
     try {
       const res = await fetch("/api/definitions", {
         method: "POST",
-        body: JSON.stringify({ term: selection })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ term: selection, context: plainText })
       })
+
       if (res.ok) {
-        const json = await res.json()
-        setDefinition(json.data)
-        setDefinedTerm(selection)
+        const { data } = await res.json()
+        setDefinition(data)
       }
     } catch (e) {
       console.error(e)
@@ -807,6 +813,10 @@ export default function EditorContainer({
 
   /* ------------------ Find citations ------------------ */
   const handleFindCitations = async () => {
+    if (demoMode) {
+      promptSignIn("Citation Hunter")
+      return
+    }
     const wordCount = plainText.split(/\s+/).length
     if (demoMode && wordCount > DEMO_WORD_LIMIT) {
       toast({
@@ -846,6 +856,10 @@ export default function EditorContainer({
   const [slideModalOpen, setSlideModalOpen] = useState(false)
 
   const handleCreateSlideDeck = async () => {
+    if (demoMode) {
+      promptSignIn("Slide Decker")
+      return
+    }
     if (!editor || creatingSlide) return
     const minutesStr = prompt(
       "Enter the desired length of your presentation in minutes (max 120):",
@@ -905,6 +919,10 @@ export default function EditorContainer({
   }
 
   const handleRunAssistant = async () => {
+    if (demoMode) {
+      promptSignIn("Research Assistant")
+      return
+    }
     const res = await fetch(`/api/research-assistant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -924,12 +942,24 @@ export default function EditorContainer({
   /* ------------------------------ Render ------------------------------ */
   return (
     <div className="flex h-full w-full">
-      {/* Definition Sidebar */}
+      {/* Research Sidebar (Left) */}
       <div className="w-72 border-r bg-background">
-        <DefinitionSidebar
+        <ResearchSidebar
           definition={definition}
           isDefining={isDefining}
           definedTerm={definedTerm}
+          citations={citations}
+          findingCitations={findingCitations}
+          citationKeywords={citationKeywords}
+          onGenerateCitations={handleFindCitations}
+          generatingCitations={findingCitations}
+          onInsertCitation={handleInsertCitation}
+          slideDeck={slideDeck}
+          slideDeckHistory={slideDeckHistory}
+          onCreateSlideDeck={handleCreateSlideDeck}
+          creatingSlideDeck={creatingSlide}
+          readability={readability}
+          stats={stats}
         />
       </div>
 
@@ -983,28 +1013,17 @@ export default function EditorContainer({
         </div>
       </div>
 
-      {/* Suggestion Sidebar */}
+      {/* Writing Suggestion Sidebar (Right) */}
       <div className="w-72 border-l bg-background">
-        <SuggestionSidebar
+        <WritingSuggestionSidebar
           suggestions={suggestions}
           plainText={plainText}
-          readability={readability}
-          stats={stats}
           onApplySuggestion={applySuggestion}
           onAddToDictionary={handleAddToDictionary}
           toneSuggestions={toneSuggestions}
           onAcceptToneSuggestion={applyToneSuggestion}
-          citations={citations}
-          findingCitations={findingCitations}
-          citationKeywords={citationKeywords}
-          slideDeck={slideDeck}
-          slideDeckHistory={slideDeckHistory}
-          onCreateSlideDeck={handleCreateSlideDeck}
-          creatingSlideDeck={creatingSlide}
           onGenerateTone={handleToneHarmonize}
           generatingTone={isHarmonizing}
-          onGenerateCitations={handleFindCitations}
-          generatingCitations={findingCitations}
         />
       </div>
 
@@ -1024,6 +1043,12 @@ export default function EditorContainer({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DemoSignInPrompt
+        isOpen={showSignInPrompt}
+        onClose={() => setShowSignInPrompt(false)}
+        featureName={currentFeature}
+      />
     </div>
   )
 }

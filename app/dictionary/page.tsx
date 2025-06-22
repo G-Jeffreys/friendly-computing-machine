@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import Header from "@/components/header"
+import { Header } from "@/components/header"
 import Link from "next/link"
 
 interface DictWord {
@@ -59,7 +59,7 @@ export default function DictionaryPage() {
   return (
     <>
       <Header />
-      <div className="mx-auto max-w-lg p-6">
+      <div className="mx-auto max-w-lg p-6 pt-20">
         <Link
           href="/documents"
           className="mb-4 inline-block text-blue-600 hover:underline"

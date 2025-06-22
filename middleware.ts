@@ -6,44 +6,63 @@ Contains middleware for protecting routes, checking user authentication, and red
 
 import { clerkMiddleware } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
 
-const clerkOptions = {
-  ignoredRoutes: [
-    "/about",
-    "/contact",
-    "/pricing",
-    "/sign-in(.*)",
-    "/sign-up(.*)",
-    "/api/stripe/webhooks"
-  ]
-} as any
+// Create an array of public routes that don't require authentication
+const publicRoutes = [
+  "/about",
+  "/features",
+  "/demo",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/api/stripe/webhooks"
+]
 
-// Wrap Clerk's middleware so we can enforce rate limiting *after* authentication
-// checks have run but **before** hitting our API/business logic.
-export default clerkMiddleware((auth, req) => {
+// Combine rate limiting with auth middleware
+export default clerkMiddleware(async (auth, req: NextRequest) => {
+  const { userId } = await auth()
   const { pathname } = req.nextUrl
+  const isPublicRoute = publicRoutes.some(pattern => {
+    if (pattern.includes("(.*)")) {
+      return pathname.match(new RegExp(`^${pattern.replace("(.*)", ".*")}$`))
+    }
+    return pathname === pattern
+  })
 
-  // Only rate-limit API calls (except the Stripe webhook b/c it comes from
-  // Stripe's IPs and must never be blocked) and non-static routes.
+  // If the user is signed in and trying to access the root or public pages,
+  // redirect them to /documents
+  if (userId && (pathname === "/" || isPublicRoute)) {
+    return NextResponse.redirect(new URL("/documents", req.url))
+  }
+
+  // If the user is not signed in and trying to access a protected route,
+  // redirect them to /about
+  if (!userId && !isPublicRoute && pathname !== "/") {
+    return NextResponse.redirect(new URL("/about", req.url))
+  }
+
+  // Handle rate limiting for API routes
   if (
     pathname.startsWith("/api") &&
     !pathname.startsWith("/api/stripe/webhooks")
   ) {
     const allowed = checkRateLimit(req)
     if (!allowed) {
-      // eslint-disable-next-line no-console
-      console.warn("[middleware] rate limit triggered for", pathname)
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 })
+      return NextResponse.json(
+        { message: "Rate limit exceeded" },
+        { status: 429 }
+      )
     }
   }
 
-  // When rate limit is not triggered we intentionally **return nothing** so
-  // Clerk's internal middleware can continue and emit the headers required
-  // for the `auth()` helper to detect that the middleware executed.
-  return undefined as any
-}, clerkOptions)
+  return NextResponse.next()
+})
 
 export const config = {
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"]
+  matcher: [
+    "/((?!.*\\..*|_next).*)", // match all paths except static files
+    "/", // include root
+    "/(api|trpc)(.*)" // include API routes
+  ]
 }

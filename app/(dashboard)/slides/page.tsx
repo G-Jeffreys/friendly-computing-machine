@@ -144,7 +144,7 @@ export default function SlidesPage() {
               <AccordionContent>
                 <div className="space-y-4 p-4">
                   {doc.slideDecks.length === 0 ? (
-                    <p className="text-muted-foreground">No slide decks yet.</p>
+                    <p className="text-sm text-muted-foreground">No slide decks yet.</p>
                   ) : (
                     doc.slideDecks.map(deck => (
                       <div
@@ -152,7 +152,7 @@ export default function SlidesPage() {
                         className="flex items-center justify-between rounded-lg border p-4"
                       >
                         <div>
-                          <h3 className="font-medium">
+                          <h3 className="text-base font-medium">
                             {`Slides (${new Date(deck.createdAt).toLocaleDateString()})`}
                           </h3>
                           <p className="text-sm text-muted-foreground">

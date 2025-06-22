@@ -16,7 +16,7 @@ export default async function DemoPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl py-8">
+    <div className="flex h-full">
       {/* Pass demoMode so editor enforces word/time limits */}
       <DocumentEditorLazy initialDocument={initialDocument} demoMode />
     </div>

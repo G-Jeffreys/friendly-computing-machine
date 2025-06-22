@@ -4,7 +4,7 @@ import { definitionExpanderAction } from "@/actions/ai/definition-expander-actio
 
 /**
  * POST /api/definitions
- * Body: { term: string }
+ * Body: { term: string, context: string }
  */
 export async function POST(request: Request) {
   try {
@@ -15,12 +15,13 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const term = typeof body.term === "string" ? body.term.trim() : ""
+    const context = typeof body.context === "string" ? body.context.trim() : ""
 
     if (!term) {
       return NextResponse.json({ message: "Invalid term" }, { status: 400 })
     }
 
-    const res = await definitionExpanderAction(term)
+    const res = await definitionExpanderAction(term, context)
 
     return NextResponse.json(
       { message: res.message, data: res.data },

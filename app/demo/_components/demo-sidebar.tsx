@@ -19,7 +19,7 @@ export default function DemoSidebar() {
 
   return (
     <>
-      <aside className="bg-sidebar hidden w-60 shrink-0 overflow-y-auto border-r px-4 py-6 md:block">
+      <aside className="bg-sidebar hidden w-[240px] shrink-0 overflow-y-auto border-r px-4 py-6 md:block">
         <h2 className="mb-4 text-lg font-semibold">Documents</h2>
 
         <ul className="space-y-2">
