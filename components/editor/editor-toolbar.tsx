@@ -14,7 +14,6 @@ import {
   Link as LinkIcon
 } from "lucide-react"
 import type { Editor as TipTapEditor } from "@tiptap/core"
-import { Switch } from "@/components/ui/switch"
 
 interface EditorToolbarProps {
   /** The active TipTap editor instance. */
@@ -138,22 +137,7 @@ function EditorToolbar({
       >
         <RedoIcon className="size-4" />
       </Button>
-      {/* ---------------- Max Mode Toggle ---------------- */}
-      {typeof onToggleMaxMode === "function" && (
-        <div className="flex items-center gap-1 px-2">
-          <Switch
-            id="max-mode-toggle"
-            checked={maxMode}
-            onCheckedChange={onToggleMaxMode}
-            aria-label="Toggle Max Mode"
-          />
-          <label htmlFor="max-mode-toggle" className="select-none text-xs">
-            Max
-          </label>
-        </div>
-      )}
-      <div className="bg-border mx-2 h-6 w-px" />
-      {/* Action buttons removed – functionality now inside sidebar accordions */}
+      {/* Max Mode toggle removed */}
     </div>
   )
 }
