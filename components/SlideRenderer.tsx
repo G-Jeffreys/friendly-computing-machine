@@ -12,8 +12,7 @@ interface SlideRendererProps {
 
 /**
  * SlideRenderer – groups bullet points into slides of 3-5 items each.
- * Each group is rendered inside its own card-like container with enhanced styling
- * and progress indicators.
+ * Each group is rendered inside its own square-like container with enhanced spacing.
  */
 export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
   // Split into bullet points and group into slides of 3-5 items
@@ -35,7 +34,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
       if ((currentSlide.length >= 3 && items.length > index + 1) || 
           currentSlide.length === 5 ||
           index === items.length - 1) {
-        slides.push(currentSlide.join("\n"))
+        slides.push(currentSlide.join("\n\n")) // Add extra newline for more spacing
         currentSlide = []
       }
     })
@@ -92,7 +91,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
   }, [currentSlide, slides.length])
 
   return (
-    <div className="relative flex min-h-[60vh] flex-col items-center justify-center gap-8 p-4">
+    <div className="relative flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center gap-8 p-4">
       {/* Progress bar */}
       <div className="fixed left-0 right-0 top-0 z-50 p-4">
         <Progress value={progress} className="h-2" />
@@ -102,7 +101,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
       </div>
 
       {/* Slide content */}
-      <div className="relative h-full w-full overflow-hidden">
+      <div className="relative aspect-square w-full max-w-4xl overflow-hidden">
         <motion.div
           key={currentSlide}
           custom={currentSlide}
@@ -114,10 +113,12 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ markdown }) => {
             x: { type: "spring", stiffness: 300, damping: 30 },
             opacity: { duration: 0.2 }
           }}
-          className="mx-auto max-w-4xl rounded-xl border bg-gradient-to-b from-white to-gray-50 p-12 shadow-lg dark:from-slate-900 dark:to-slate-800"
+          className="absolute inset-0 flex items-center justify-center"
         >
-          <div className="prose prose-lg dark:prose-invert">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{slides[currentSlide]}</ReactMarkdown>
+          <div className="w-full rounded-xl border bg-gradient-to-b from-white to-gray-50 p-12 shadow-lg dark:from-slate-900 dark:to-slate-800">
+            <div className="prose prose-lg mx-auto flex h-full flex-col justify-center space-y-8 dark:prose-invert">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{slides[currentSlide]}</ReactMarkdown>
+            </div>
           </div>
         </motion.div>
       </div>
