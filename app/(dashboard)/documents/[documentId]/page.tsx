@@ -30,7 +30,7 @@ export default async function DocumentPage({
   }
 
   return (
-    <div className="mx-auto max-w-4xl py-8">
+    <div className="flex h-full">
       <Suspense fallback={<DocumentSkeleton />}>
         <DocumentEditorLazy initialDocument={res.data} />
       </Suspense>

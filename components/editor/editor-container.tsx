@@ -34,6 +34,7 @@ import type { CitationEntry } from "@/actions/ai/citation-hunter-action"
 // Extracted UI components
 import EditorToolbar from "./editor-toolbar"
 import SuggestionSidebar from "./suggestion-sidebar"
+import DefinitionSidebar from "./definition-sidebar"
 import {
   Dialog,
   DialogContent,
@@ -43,11 +44,6 @@ import {
   DialogTitle
 } from "@/components/ui/dialog"
 import posthog from "posthog-js"
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger
-} from "@/components/ui/hover-card"
 
 interface EditorContainerProps {
   initialDocument: SelectDocument
@@ -928,92 +924,67 @@ export default function EditorContainer({
   /* ------------------------------ Render ------------------------------ */
   return (
     <div className="flex h-full w-full">
-      <div
-        className="relative flex flex-1 flex-col"
-        onClick={e => {
-          if (!editor) return
-          // Only refocus TipTap when the user clicks inside the actual
-          // content area – not when they click the title field, toolbar, etc.
-          const target = e.target as HTMLElement
-          const editorArea = editorViewRef.current
-          if (editorArea && editorArea.contains(target)) {
-            if (!editor.isFocused) {
-              editor.chain().focus().run()
-            }
-          }
-        }}
-      >
-        <div className="flex items-center justify-between border-b p-2 px-4">
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            className="w-1/2 bg-transparent text-lg font-semibold outline-none"
-            placeholder="Untitled Document"
-          />
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-              {secondsSinceLastSave < 5
-                ? "Saved just now"
-                : `Last saved ${Math.round(secondsSinceLastSave)}s ago`}
-            </p>
-            <Button onClick={handleSave} size="sm">
-              Save
-            </Button>
-            <Button onClick={handleDelete} size="sm" variant="destructive">
-              Delete
-            </Button>
-          </div>
-        </div>
-        <EditorToolbar
-          editor={editor}
-          maxMode={maxMode}
-          onToggleMaxMode={setMaxMode}
-          onToneHarmonize={handleToneHarmonize}
-          onFindCitations={handleFindCitations}
-          findingCitations={findingCitations}
-          onCreateSlideDeck={handleCreateSlideDeck}
-          creatingSlideDeck={creatingSlide}
+      {/* Definition Sidebar */}
+      <div className="w-72 border-r bg-background">
+        <DefinitionSidebar
+          definition={definition}
+          isDefining={isDefining}
+          definedTerm={definedTerm}
         />
-        <div
-          ref={editorViewRef}
-          onScroll={updateCurrentPage}
-          className={`paginated-editor-area relative h-full flex-1 ${
-            isNewDocument ? "new-document-highlight" : ""
-          }`}
-        >
-          <EditorContent editor={editor} />
-        </div>
-        <div className="page-counter">
-          Page {currentPage} of {pageCount}
-        </div>
+      </div>
 
-        {definition && defineAnchor && (
-          <div
-            ref={definitionPopupRef}
-            className="absolute z-10 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95"
-            style={{
-              position: "absolute",
-              top: `${defineAnchor.y + 8}px`,
-              left: `${defineAnchor.x}px`
-            }}
-          >
-            <h4 className="font-bold">{definition.term}</h4>
-            <p className="text-sm">{definition.definition}</p>
-            <div className="mt-2 text-xs text-muted-foreground">
-              <p>
-                <span className="font-semibold">Etymology:</span>{" "}
-                {definition.etymology}
+      {/* Main Editor Area */}
+      <div className="flex-1">
+        <div className="mx-auto max-w-4xl">
+          <div className="flex items-center justify-between border-b p-2 px-4">
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-1/2 bg-transparent text-lg font-semibold outline-none"
+              placeholder="Untitled Document"
+            />
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">
+                {secondsSinceLastSave < 5
+                  ? "Saved just now"
+                  : `Last saved ${Math.round(secondsSinceLastSave)}s ago`}
               </p>
-              <p className="mt-1">
-                <span className="font-semibold">Example:</span>{" "}
-                <em>{definition.example}</em>
-              </p>
+              <Button onClick={handleSave} size="sm">
+                Save
+              </Button>
+              <Button onClick={handleDelete} size="sm" variant="destructive">
+                Delete
+              </Button>
             </div>
           </div>
-        )}
+          <EditorToolbar
+            editor={editor}
+            maxMode={maxMode}
+            onToggleMaxMode={setMaxMode}
+            onToneHarmonize={handleToneHarmonize}
+            onFindCitations={handleFindCitations}
+            findingCitations={findingCitations}
+            onCreateSlideDeck={handleCreateSlideDeck}
+            creatingSlideDeck={creatingSlide}
+          />
+          <div
+            ref={editorViewRef}
+            onScroll={updateCurrentPage}
+            className={`paginated-editor-area relative h-full flex-1 p-8 ${
+              isNewDocument ? "new-document-highlight" : ""
+            }`}
+          >
+            <EditorContent editor={editor} />
+          </div>
+          <div className="page-counter">
+            Page {currentPage} of {pageCount}
+          </div>
+        </div>
       </div>
-      <div className="hidden h-full flex-col border-l lg:flex">
+
+      {/* Suggestion Sidebar */}
+      <div className="w-72 border-l bg-background">
         <SuggestionSidebar
           suggestions={suggestions}
           plainText={plainText}
@@ -1025,6 +996,7 @@ export default function EditorContainer({
           onAcceptToneSuggestion={applyToneSuggestion}
           citations={citations}
           findingCitations={findingCitations}
+          citationKeywords={citationKeywords}
           slideDeck={slideDeck}
           slideDeckHistory={slideDeckHistory}
           onCreateSlideDeck={handleCreateSlideDeck}
@@ -1033,9 +1005,9 @@ export default function EditorContainer({
           generatingTone={isHarmonizing}
           onGenerateCitations={handleFindCitations}
           generatingCitations={findingCitations}
-          citationKeywords={citationKeywords}
         />
       </div>
+
       {/* Demo Word Count Limiter Modal */}
       <Dialog open={demoBlocked} onOpenChange={setDemoBlocked}>
         <DialogContent className="sm:max-w-[425px]">
