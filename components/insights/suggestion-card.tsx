@@ -35,7 +35,7 @@ export function SuggestionCard({
             {/* We need the original text to display this */}
           </span>
         </p>
-        <p className="text-sm text-muted-foreground">{message}</p>
+        <p className="text-muted-foreground text-sm">{message}</p>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2 p-4 pt-0">
         {replacements.slice(0, 3).map(rep => (
@@ -65,4 +65,4 @@ export function SuggestionCard({
       </CardFooter>
     </Card>
   )
-} 
+}

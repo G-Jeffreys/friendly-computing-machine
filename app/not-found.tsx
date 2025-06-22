@@ -16,12 +16,13 @@ export default function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8 text-center">
       <h1 className="text-5xl font-bold">404 – Page not found</h1>
-      <p className="max-w-md text-balance text-lg text-muted-foreground">
-        Oops! The page you&rsquo;re looking for doesn&rsquo;t exist. It may have been moved or removed.
+      <p className="text-muted-foreground max-w-md text-balance text-lg">
+        Oops! The page you&rsquo;re looking for doesn&rsquo;t exist. It may have
+        been moved or removed.
       </p>
       <Link href="/">
         <Button className="text-lg">Return home</Button>
       </Link>
     </main>
   )
-} 
+}

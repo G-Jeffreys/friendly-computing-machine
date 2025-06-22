@@ -26,7 +26,7 @@ export function InsightsPanel({
 }: InsightsPanelProps) {
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-shrink-0 p-4">
+      <div className="shrink-0 p-4">
         <h2 className="text-xl font-semibold">Insights</h2>
         <p className="text-muted-foreground text-sm">
           AI-powered suggestions and analysis.
@@ -59,9 +59,9 @@ export function InsightsPanel({
           </Accordion>
         </div>
       </ScrollArea>
-      <div className="flex-shrink-0 border-t p-4">
+      <div className="shrink-0 border-t p-4">
         <Button className="w-full">Run Analysis</Button>
       </div>
     </div>
   )
-} 
+}

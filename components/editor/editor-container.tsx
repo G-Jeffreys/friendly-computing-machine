@@ -154,17 +154,22 @@ export default function EditorContainer({
   useEffect(() => {
     const loadSlideDeckHistory = async () => {
       try {
-        const res = await fetch(`/api/documents/${initialDocument.id}/slide-deck`)
+        const res = await fetch(
+          `/api/documents/${initialDocument.id}/slide-deck`
+        )
         const json = await res.json()
         if (json.isSuccess) {
           setSlideDeckHistory(json.data)
-          console.log("[EditorContainer] loaded slide deck history", json.data.length)
+          console.log(
+            "[EditorContainer] loaded slide deck history",
+            json.data.length
+          )
         }
       } catch (e) {
         console.error("[EditorContainer] failed to load slide deck history", e)
       }
     }
-    
+
     loadSlideDeckHistory()
   }, [initialDocument.id])
 
@@ -313,7 +318,10 @@ export default function EditorContainer({
   }, [analyse, decorationKey])
 
   // Debounced wrapper so we don't hammer the analyser while typing.
-  const debouncedRunChecks = useMemo(() => debounce(runChecks, 1000), [runChecks])
+  const debouncedRunChecks = useMemo(
+    () => debounce(runChecks, 1000),
+    [runChecks]
+  )
 
   /* ---------------------- Suggestion highlight decoration ---------------------- */
   const createSuggestionPlugin = useCallback(() => {
@@ -328,12 +336,20 @@ export default function EditorContainer({
         if (index !== -1) {
           const startIndex = index
           const endIndex = index + sg.original.length - 1
-          if (startIndex >= charPositions.length || endIndex >= charPositions.length) return
+          if (
+            startIndex >= charPositions.length ||
+            endIndex >= charPositions.length
+          )
+            return
 
           const from = charPositions[startIndex]
           const to = charPositions[endIndex] + 1 // inclusive
 
-          decos.push(Decoration.inline(from, to, { class: "text-green-600 underline decoration-green-600" }))
+          decos.push(
+            Decoration.inline(from, to, {
+              class: "text-green-600 underline decoration-green-600"
+            })
+          )
         }
       })
 
@@ -348,22 +364,29 @@ export default function EditorContainer({
       suggestionsRef.current.forEach(sg => {
         const startIndex = sg.offset
         const endIndex = sg.offset + sg.length - 1
-        if (startIndex >= charPositions.length || endIndex >= charPositions.length) return
+        if (
+          startIndex >= charPositions.length ||
+          endIndex >= charPositions.length
+        )
+          return
 
         const from = charPositions[startIndex]
         const to = charPositions[endIndex] + 1 // inclusive
 
         // Only add decoration if there isn't already a tone harmonizer decoration at this position
-        const hasToneDecoration = decos.some(d => 
-          (d.from <= from && d.to >= to) || // Tone decoration fully contains this one
-          (d.from >= from && d.from <= to) || // Tone decoration starts inside this one
-          (d.to >= from && d.to <= to) // Tone decoration ends inside this one
+        const hasToneDecoration = decos.some(
+          d =>
+            (d.from <= from && d.to >= to) || // Tone decoration fully contains this one
+            (d.from >= from && d.from <= to) || // Tone decoration starts inside this one
+            (d.to >= from && d.to <= to) // Tone decoration ends inside this one
         )
 
         if (!hasToneDecoration) {
           ;(sg as PosSuggestion).from = from
           ;(sg as PosSuggestion).to = to
-          decos.push(Decoration.inline(from, to, { class: colorClass(sg.type) }))
+          decos.push(
+            Decoration.inline(from, to, { class: colorClass(sg.type) })
+          )
         }
       })
 
@@ -697,7 +720,8 @@ export default function EditorContainer({
     if (!textToHarmonize.trim()) {
       toast({
         title: "No text selected",
-        description: "Please select text to harmonize or leave it blank to analyze the whole document."
+        description:
+          "Please select text to harmonize or leave it blank to analyze the whole document."
       })
       return
     }
@@ -720,7 +744,10 @@ export default function EditorContainer({
         toast({ title: "Error", description: json.message })
       }
     } catch (e) {
-      toast({ title: "Error", description: "Failed to fetch tone suggestions." })
+      toast({
+        title: "Error",
+        description: "Failed to fetch tone suggestions."
+      })
     } finally {
       setHarmonizing(false)
     }
@@ -941,9 +968,9 @@ export default function EditorContainer({
 
   /* ------------------------------ Render ------------------------------ */
   return (
-    <div className="flex h-full w-full">
+    <div className="flex size-full">
       {/* Research Sidebar (Left) */}
-      <div className="w-72 border-r bg-background">
+      <div className="bg-background w-72 border-r">
         <ResearchSidebar
           definition={definition}
           isDefining={isDefining}
@@ -975,7 +1002,7 @@ export default function EditorContainer({
               placeholder="Untitled Document"
             />
             <div className="flex items-center gap-2">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 {secondsSinceLastSave < 5
                   ? "Saved just now"
                   : `Last saved ${Math.round(secondsSinceLastSave)}s ago`}
@@ -1014,7 +1041,7 @@ export default function EditorContainer({
       </div>
 
       {/* Writing Suggestion Sidebar (Right) */}
-      <div className="w-72 border-l bg-background">
+      <div className="bg-background w-72 border-l">
         <WritingSuggestionSidebar
           suggestions={suggestions}
           plainText={plainText}

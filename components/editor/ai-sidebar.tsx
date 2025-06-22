@@ -83,10 +83,8 @@ function AiSidebar({
   creatingSlideDeck
 }: AiSidebarProps) {
   const [slideDecks, setSlideDecks] = useState<SlideDeckHistoryEntry[]>([])
-  const [
-    selectedDeck,
-    setSelectedDeck
-  ] = useState<SlideDeckHistoryEntry | null>(null)
+  const [selectedDeck, setSelectedDeck] =
+    useState<SlideDeckHistoryEntry | null>(null)
 
   useEffect(() => {
     // This is a placeholder. In a real app, you'd fetch this from the document.
@@ -124,17 +122,17 @@ function AiSidebar({
       <div className="p-4">
         <h3 className="mb-2 font-semibold">Suggested Citations</h3>
         {findingCitations ? (
-          <p className="text-sm text-muted-foreground">Searching...</p>
+          <p className="text-muted-foreground text-sm">Searching...</p>
         ) : citations.length > 0 ? (
           <ul className="space-y-4">
             {citations.map((c, i) => (
               <li key={i} className="text-sm">
                 <p className="font-bold">{c.title}</p>
                 <p className="text-muted-foreground">{c.authors}</p>
-                <p className="text-xs italic text-muted-foreground">
+                <p className="text-muted-foreground text-xs italic">
                   {c.journal}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   SJR (2024): {c.sjr.toFixed(3)}
                 </p>
                 <div className="mt-2 flex gap-2">
@@ -146,11 +144,7 @@ function AiSidebar({
                     Insert
                   </Button>
                   {c.url && (
-                    <a
-                      href={c.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
+                    <a href={c.url} target="_blank" rel="noopener noreferrer">
                       <Button size="sm" variant="ghost">
                         Source
                       </Button>
@@ -161,9 +155,9 @@ function AiSidebar({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            No citations found. Try running the citation hunter from the
-            editor toolbar.
+          <p className="text-muted-foreground text-sm">
+            No citations found. Try running the citation hunter from the editor
+            toolbar.
           </p>
         )}
       </div>
@@ -241,7 +235,7 @@ function AiSidebar({
                         timeStyle: "short"
                       })}
                     </p>
-                    <p className="truncate text-muted-foreground">
+                    <p className="text-muted-foreground truncate">
                       {deck.outline.length} points
                     </p>
                   </button>
@@ -252,7 +246,7 @@ function AiSidebar({
         )}
         {points.length > 0 && (
           <>
-            <p className="text-xs text-muted-foreground mb-2">
+            <p className="text-muted-foreground mb-2 text-xs">
               Length: {points.length} minutes
             </p>
             <ScrollArea className="mt-2 h-72">
