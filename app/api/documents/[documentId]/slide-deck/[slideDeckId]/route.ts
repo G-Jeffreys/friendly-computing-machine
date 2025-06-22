@@ -2,11 +2,11 @@ import { db } from "@/db/db"
 import { slideDecksTable } from "@/db/schema"
 import { auth } from "@clerk/nextjs/server"
 import { and, eq } from "drizzle-orm"
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 
 export async function DELETE(
-  request: NextRequest,
-  context: { params: { documentId: string; slideDeckId: string } }
+  request: Request,
+  { params }: { params: Promise<{ documentId: string; slideDeckId: string }> }
 ) {
   try {
     const { userId } = await auth()
@@ -14,7 +14,7 @@ export async function DELETE(
       return new NextResponse("Unauthorized", { status: 401 })
     }
 
-    const { documentId, slideDeckId } = context.params
+    const { documentId, slideDeckId } = await params
 
     // Delete the slide deck
     const [deleted] = await db
