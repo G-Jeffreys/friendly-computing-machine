@@ -182,21 +182,8 @@ function WritingSuggestionSidebar({
                             <p className="text-muted-foreground mb-1 text-xs font-medium">
                               Improved:
                             </p>
-                            <p className="text-sm font-medium text-green-600 underline decoration-green-600">
-                              {t.revised}
-                            </p>
+                            <p className="text-sm font-medium">{t.revised}</p>
                           </div>
-                          {onAcceptToneSuggestion && (
-                            <Button
-                              size="sm"
-                              className="mt-2 w-full"
-                              onClick={() =>
-                                onAcceptToneSuggestion(t.original, t.revised)
-                              }
-                            >
-                              Apply Change
-                            </Button>
-                          )}
                         </div>
                       </div>
                     ))}

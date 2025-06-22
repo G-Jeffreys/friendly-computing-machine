@@ -178,19 +178,11 @@ function AiSidebar({
             <p className="mb-1">{t.original}</p>
             <p className="text-muted-foreground mb-1 text-xs">Revised:</p>
             <p className="font-semibold">{t.revised}</p>
-            {onAcceptToneSuggestion && (
-              <button
-                className="mt-1 rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
-                onClick={() => onAcceptToneSuggestion(t.original, t.revised)}
-              >
-                Accept
-              </button>
-            )}
           </li>
         ))}
       </ul>
     )
-  }, [toneSuggestions, hasTone, onAcceptToneSuggestion])
+  }, [toneSuggestions, hasTone])
 
   const slidesContent = useMemo(() => {
     if (!hasSlides) {

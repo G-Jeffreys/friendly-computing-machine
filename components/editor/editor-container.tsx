@@ -345,11 +345,7 @@ export default function EditorContainer({
           const from = charPositions[startIndex]
           const to = charPositions[endIndex] + 1 // inclusive
 
-          decos.push(
-            Decoration.inline(from, to, {
-              class: "text-green-600 underline decoration-green-600"
-            })
-          )
+          // Intentionally skip adding decorations for tone suggestions to remove green underlining.
         }
       })
 
@@ -755,13 +751,37 @@ export default function EditorContainer({
 
   const applyToneSuggestion = (orig: string, revised: string) => {
     if (!editor) return
+
     const documentText = editor.getText()
-    const index = documentText.indexOf(orig)
-    if (index === -1) return
+
+    // Clean the original text by removing the "- " prefix if present
+    const cleanOriginal = orig.startsWith("- ") ? orig.substring(2) : orig
+
+    const index = documentText.indexOf(cleanOriginal)
+    if (index === -1) {
+      console.warn(
+        "[applyToneSuggestion] Text not found in document:",
+        cleanOriginal
+      )
+      return
+    }
+
     const charPositions = charPositionsRef.current
+    if (!charPositions || index >= charPositions.length) {
+      console.warn(
+        "[applyToneSuggestion] CharPositions not available or index out of bounds"
+      )
+      return
+    }
+
     const from = charPositions[index]
-    const to = charPositions[index + orig.length - 1] + 1
-    editor.chain().focus().insertContentAt({ from, to }, revised).run()
+    const to = charPositions[index + cleanOriginal.length - 1] + 1
+
+    try {
+      editor.chain().focus().insertContentAt({ from, to }, revised).run()
+    } catch (error) {
+      console.error("[applyToneSuggestion] Error applying change:", error)
+    }
   }
 
   /* -------------------- Definitions -------------------- */
