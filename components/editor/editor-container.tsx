@@ -323,6 +323,22 @@ export default function EditorContainer({
       const charPositions = charPositionsRef.current
       if (!charPositions) return DecorationSet.empty
 
+      // Add tone harmonizer decorations first (highest priority)
+      toneSuggestions.forEach(sg => {
+        const index = plainText.indexOf(sg.original)
+        if (index !== -1) {
+          const startIndex = index
+          const endIndex = index + sg.original.length - 1
+          if (startIndex >= charPositions.length || endIndex >= charPositions.length) return
+
+          const from = charPositions[startIndex]
+          const to = charPositions[endIndex] + 1 // inclusive
+
+          decos.push(Decoration.inline(from, to, { class: "text-green-600 underline decoration-green-600" }))
+        }
+      })
+
+      // Add other suggestions after (lower priority)
       const colorClass = (t: Suggestion["type"]) =>
         t === "spell"
           ? "text-red-600 underline decoration-red-600"
@@ -338,7 +354,14 @@ export default function EditorContainer({
         const from = charPositions[startIndex]
         const to = charPositions[endIndex] + 1 // inclusive
 
-        if (from && to) {
+        // Only add decoration if there isn't already a tone harmonizer decoration at this position
+        const hasToneDecoration = decos.some(d => 
+          (d.from <= from && d.to >= to) || // Tone decoration fully contains this one
+          (d.from >= from && d.from <= to) || // Tone decoration starts inside this one
+          (d.to >= from && d.to <= to) // Tone decoration ends inside this one
+        )
+
+        if (!hasToneDecoration) {
           ;(sg as PosSuggestion).from = from
           ;(sg as PosSuggestion).to = to
           decos.push(Decoration.inline(from, to, { class: colorClass(sg.type) }))

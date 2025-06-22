@@ -1,0 +1,1 @@
+ALTER TABLE "slide_decks" ADD COLUMN "minutes" integer DEFAULT 30 NOT NULL;

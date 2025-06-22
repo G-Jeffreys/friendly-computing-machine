@@ -89,12 +89,14 @@ export async function POST(
           userId,
           documentId,
           title: docRes.data.title,
-          content: markdown
+          content: markdown,
+          minutes
         })
         console.log("[API/slide-deck] outline persisted", {
           userId,
           documentId,
-          count: res.data.length
+          count: res.data.length,
+          minutes
         })
       } catch (err) {
         console.error("[API/slide-deck] DB insert error", err)

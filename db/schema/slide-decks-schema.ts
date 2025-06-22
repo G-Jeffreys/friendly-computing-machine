@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core"
+import { pgTable, uuid, text, timestamp, integer } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
 import { documentsTable } from "./documents-schema"
 
@@ -18,6 +18,8 @@ export const slideDecksTable = pgTable("slide_decks", {
   title: text("title").notNull().default("Untitled Deck"),
   /** Markdown content of the slide deck */
   content: text("content").notNull(),
+  /** Length of time in minutes requested for slide deck generation */
+  minutes: integer("minutes").notNull().default(30),
   /** Timestamp */
   createdAt: timestamp("created_at").defaultNow().notNull()
 })
