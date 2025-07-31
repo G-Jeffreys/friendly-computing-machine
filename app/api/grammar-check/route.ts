@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { grammarCheckAction } from "@/actions/ai/grammar-check-action"
+import { getUserDictionaryAction } from "@/actions/db/user-dictionary-actions"
 
 // ------------------ Simple per-user in-memory rate limiter ------------------
 // NOTE: This is reset whenever the serverless instance is recycled. For a more
@@ -46,7 +47,63 @@ export async function POST(request: Request) {
     if (!text.trim()) {
       return NextResponse.json({ message: "Invalid text" }, { status: 400 })
     }
+
+    // Allow client to specify language (defaults to "en") so we fetch the proper dictionary.
+    const languageCode: string =
+      typeof body.languageCode === "string" && body.languageCode.trim() !== ""
+        ? body.languageCode
+        : "en"
+
+    console.log("[API/grammar-check] received text length", text.length)
+    console.log("[API/grammar-check] languageCode", languageCode)
     const res = await grammarCheckAction(text)
+    console.log(
+      "[API/grammar-check] suggestions before dictionary filter",
+      res.data?.length ?? 0
+    )
+
+    // ---------------- Dictionary filtering ----------------
+    if (res.isSuccess && Array.isArray(res.data)) {
+      try {
+        const dictRes = await getUserDictionaryAction(userId, languageCode)
+        console.log(
+          "[API/grammar-check] user dictionary words",
+          dictRes.data?.length ?? 0
+        )
+        if (dictRes.isSuccess && Array.isArray(dictRes.data)) {
+          const userWords = new Set<string>(
+            dictRes.data.map(row => row.word.toLowerCase())
+          )
+
+          // Remove spell-type suggestions that are in the dictionary.
+          res.data = res.data.filter(sg => {
+            // Extract the substring to compare against dictionary.
+            const rawSub = text.substring(sg.offset, sg.offset + sg.length)
+            const word = rawSub.replace(/^[^\w]+|[^\w]+$/g, "").toLowerCase()
+            const shouldKeep = !userWords.has(word)
+            if (!shouldKeep) {
+              console.debug(
+                "[API/grammar-check] removed suggestion for dictionary word",
+                word,
+                sg.id
+              )
+            }
+            return shouldKeep
+          })
+          console.log(
+            "[API/grammar-check] suggestions after filter",
+            res.data.length
+          )
+        }
+      } catch (dictError) {
+        // Non-fatal – log but continue with unfiltered suggestions.
+        console.error(
+          "[API/grammar-check] dictionary filtering failed",
+          dictError
+        )
+      }
+    }
+
     return NextResponse.json(res, { status: res.isSuccess ? 200 : 500 })
   } catch (error) {
     console.error("[API/grammar-check]", error)
